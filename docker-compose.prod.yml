@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  backend:
+    env_file:
+      - ./backend/.env.production
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///./data/research_os.db}
+    expose:
+      - "8000"
+    ports: []
+
+  frontend:
+    env_file:
+      - ./frontend/.env.production
+    expose:
+      - "3000"
+    ports: []
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro

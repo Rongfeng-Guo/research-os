@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      LOG_LEVEL: INFO
+      LOG_FORMAT: plain
+      DATABASE_URL: sqlite:///./data/research_os.db
+      CORS_ALLOW_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      PAPER_DISCOVERY_PROVIDER: ${PAPER_DISCOVERY_PROVIDER:-mock}
+      PAPER_DISCOVERY_ALLOW_FALLBACK: ${PAPER_DISCOVERY_ALLOW_FALLBACK:-true}
+      PAPER_DISCOVERY_TIMEOUT_SECONDS: ${PAPER_DISCOVERY_TIMEOUT_SECONDS:-20}
+      PAPER_SEARCH_LIMIT: ${PAPER_SEARCH_LIMIT:-8}
+      EXTRACTION_PROVIDER: ${EXTRACTION_PROVIDER:-mock}
+      EXTRACTION_ALLOW_FALLBACK: ${EXTRACTION_ALLOW_FALLBACK:-true}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENALEX_EMAIL: ${OPENALEX_EMAIL:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready').read()"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  backend_data:
