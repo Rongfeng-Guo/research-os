@@ -58,6 +58,19 @@ This repository already runs end to end for local use:
 
 The current implementation is best suited to single-user or small-scale deployments.
 
+## How it works
+
+At a high level, the application follows this flow:
+
+1. Create a project around a topic or ongoing literature stream.
+2. Add sources from search results or direct uploads.
+3. Run extraction to turn source text into structured evidence cards.
+4. Review and pin evidence that should shape the note.
+5. Generate or update a section-based topic note.
+6. Inspect changes through note versions, suggestions, dashboard signals, and digests.
+
+The backend keeps the workflow explicit instead of hiding it behind one opaque generation step. Sources, evidence, notes, update runs, and digests all remain visible as separate artifacts.
+
 ## Stack
 
 - Backend: FastAPI, SQLModel, SQLite
@@ -169,6 +182,19 @@ Project backup support includes:
 - full project snapshot export
 - snapshot import into a new project copy
 
+## Data model
+
+The main objects in the system are:
+
+- `Project` for the research topic and refresh preferences
+- `SourcePaper` for uploaded or discovered source material
+- `ProjectPaper` for the link between projects and sources
+- `EvidenceCard` for extracted claims, methods, datasets, limitations, and open questions
+- `TopicNote` for the current working note
+- `TopicNoteVersion` for note history
+- `UpdateRun` for extraction and refresh progress
+- `WorkspaceDigest` for period summaries
+
 ## Docker
 
 For a production-like local stack:
@@ -203,6 +229,16 @@ Verified locally:
 - Digest delivery does not yet include direct email, webhook, or external vault sync
 - The schema migration approach is lightweight and does not use Alembic
 - SQLite is intended for lightweight deployment, not high-concurrency traffic
+
+## Roadmap
+
+Planned next steps:
+
+- OCR support for scanned PDFs
+- Stronger outbound digest delivery such as email or webhook targets
+- Optional direct vault export instead of download-only Obsidian packaging
+- Better multi-user and multi-instance deployment support
+- More robust database migration tooling
 
 ## Contributing
 
