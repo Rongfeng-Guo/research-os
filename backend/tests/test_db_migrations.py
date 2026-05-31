@@ -7,6 +7,7 @@ from sqlmodel import create_engine
 
 from app import db
 from app import migration_bootstrap
+from scripts import legacy_lightweight_migrate
 from app.settings import Settings
 
 
@@ -38,29 +39,37 @@ def test_bootstrap_legacy_database_for_alembic_skips_empty_database(monkeypatch,
     assert stamped == []
 
 
-def test_lightweight_migrations_emit_deprecation_warning(tmp_path: Path):
-    db_path = tmp_path / "lightweight.db"
-    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+def test_legacy_script_requires_confirm(monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["legacy_lightweight_migrate.py"])
 
+    code = legacy_lightweight_migrate.main()
+
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "Refusing to run legacy lightweight migrations without --confirm" in captured.err
+
+
+def test_legacy_script_emits_warning_and_runs(monkeypatch, caplog):
+    calls: list[str] = []
+    monkeypatch.setattr("sys.argv", ["legacy_lightweight_migrate.py", "--confirm"])
+    monkeypatch.setattr(legacy_lightweight_migrate, "add_column_if_missing", lambda **kwargs: calls.append("add"))
+    monkeypatch.setattr(legacy_lightweight_migrate, "backfill_null", lambda **kwargs: calls.append("backfill"))
+    monkeypatch.setattr(legacy_lightweight_migrate.SQLModel.metadata, "create_all", lambda engine: calls.append("create_all"))
+
+    import logging
     import warnings
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        migration_bootstrap.run_lightweight_migrations(engine=engine)
+        with caplog.at_level(logging.WARNING):
+            code = legacy_lightweight_migrate.main()
 
+    assert code == 0
+    assert "deprecated legacy lightweight migration script" in caplog.text.lower()
     assert any(item.category is DeprecationWarning for item in caught)
-
-
-def test_lightweight_migrations_log_runtime_warning(tmp_path: Path, caplog):
-    db_path = tmp_path / "lightweight-log.db"
-    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
-
-    import logging
-
-    with caplog.at_level(logging.WARNING):
-        migration_bootstrap.run_lightweight_migrations(engine=engine)
-
-    assert "DATABASE_MIGRATION_MODE=lightweight is deprecated" in caplog.text
+    assert "create_all" in calls
+    assert "add" in calls
+    assert "backfill" in calls
 
 
 def test_create_db_and_tables_uses_lightweight_path(monkeypatch):
