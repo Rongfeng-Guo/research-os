@@ -1,93 +1,141 @@
 # Research OS
 
-Research OS is a workspace for collecting papers, extracting evidence, maintaining topic notes, and reviewing how a research project changes over time.
+Research OS is a structured research workspace for turning a stream of papers into durable project knowledge.
 
-It is built for a practical workflow:
+Instead of treating literature review as a single opaque chat interaction, the system keeps each stage explicit and inspectable:
 
-`sources -> evidence cards -> topic note -> review -> version history -> digest`
+`source acquisition -> evidence extraction -> note synthesis -> review -> version history -> digest delivery`
 
-## What it does
+The result is a workflow that is more auditable than a generic AI notebook and more operational than a folder of ad hoc markdown files.
 
-- Organizes work by project and topic
-- Adds sources from search results or direct uploads
-- Extracts structured evidence cards from source text
-- Builds and maintains section-based notes
-- Tracks note revisions and update suggestions
-- Summarizes recent activity in a dashboard and digest view
+## Why it exists
+
+Most research tooling breaks down in one of two ways:
+
+- it stores documents, but not reasoning
+- it generates summaries, but not a maintainable knowledge base
+
+Research OS is designed to sit between those extremes. It organizes work around projects, preserves source provenance, stores structured evidence, and keeps topic notes under iterative revision rather than one-shot generation.
+
+That makes it suitable for:
+
+- ongoing literature surveillance
+- topic mapping and synthesis
+- project-centric evidence review
+- building notes that can be exported, delivered, and versioned over time
+
+## Product model
+
+At a high level, a project in Research OS moves through five persistent layers:
+
+1. `Sources`
+   Papers can be searched, uploaded, linked to projects, and revisited later.
+2. `Evidence`
+   Structured evidence cards capture claims, methods, datasets, limitations, and open questions.
+3. `Notes`
+   Section-based project notes are generated and revised with explicit history.
+4. `Review`
+   Suggestions, locks, manual edits, and evidence pinning keep human control in the loop.
+5. `Delivery`
+   Workspace digests and note exports move research outputs into downstream systems such as markdown bundles, Obsidian, email, or webhooks.
+
+This architecture is deliberate: notes are not the only artifact. The system preserves the intermediate reasoning surface that produced them.
 
 ## Core capabilities
 
-### Source management
+### Source ingestion and project organization
 
-- Paper search with provider abstraction
-- Text, markdown, and PDF uploads
-- Project-level source library
-- Snapshot export and import
+- Create project-scoped research workspaces
+- Search for papers through a provider abstraction
+- Upload text, markdown, and PDF files
+- Maintain a project-level source library
+- Export and import project snapshots
 
-### Evidence workflow
+### Evidence extraction and review
 
-- Structured evidence extraction
-- Review states for evidence cards
-- Manual editing and pinning
-- Section-aware source context for extracted evidence
+- Extract structured evidence from source text
+- Preserve section-aware source context
+- Review, edit, and pin evidence cards
+- Track extraction and refresh runs explicitly
 
-### Note workflow
+### Note generation and revision
 
-- Section-based note generation
-- Manual section editing
-- Section lock and unlock controls
-- Update suggestions with selective apply
-- Version history and comparison
+- Generate section-based topic notes
+- Edit sections manually
+- Lock and unlock sections selectively
+- Propose targeted update suggestions
+- Track version history and compare revisions over time
 
-### Project review
+### Digesting and outbound delivery
 
-- Workspace dashboard
-- Project health and freshness signals
-- Manual and scheduled refresh preferences
-- Period digests with markdown export
+- Generate workspace digests
+- Download markdown or bundle exports
+- Export notes and digests directly into an Obsidian vault
+- Deliver digests through email or webhook integrations
 
-## Current status
+## System architecture
 
-This repository already runs end to end for local use:
+The repository is intentionally straightforward:
+
+```text
+backend/   FastAPI application, SQLModel models, services, migrations, tests
+frontend/  Next.js App Router UI and client workflows
+deploy/    Production Nginx example and deployment assets
+```
+
+Current stack:
+
+- Backend: FastAPI, SQLModel, Alembic, SQLite
+- Frontend: Next.js, React, Tailwind CSS
+- Deployment: Docker Compose, Nginx example configuration
+
+The current implementation is optimized for single-user or small-team self-hosted use. It runs end to end locally without requiring external managed infrastructure.
+
+## Request flow and data model
+
+The main runtime path looks like this:
+
+1. Create a project around a topic, lab stream, or literature watchlist.
+2. Add sources from uploads or provider-backed search.
+3. Extract evidence into structured cards.
+4. Review or pin the evidence that should influence the note.
+5. Generate or revise the project note.
+6. Inspect changes through note history, freshness signals, and workspace digests.
+7. Export or deliver outputs to downstream systems.
+
+The core persisted entities are:
+
+- `Project`
+- `SourcePaper`
+- `ProjectPaper`
+- `EvidenceCard`
+- `TopicNote`
+- `TopicNoteVersion`
+- `UpdateRun`
+- `WorkspaceDigest`
+
+This separation is one of the project's main strengths. It keeps provenance, generation state, and exported outputs distinct instead of collapsing them into a single mutable summary.
+
+## Current operating model
+
+Research OS already supports a practical end-to-end workflow for local deployment:
 
 - backend API
 - frontend application
 - SQLite persistence
-- local scheduler for refresh and digest generation
-- markdown export flows for snapshots and digests
+- in-process refresh and digest scheduling
+- note and digest export flows
+- Alembic-managed schema evolution
 
-The current implementation is best suited to single-user or small-scale deployments.
+Operationally, the project should currently be understood as:
 
-## How it works
-
-At a high level, the application follows this flow:
-
-1. Create a project around a topic or ongoing literature stream.
-2. Add sources from search results or direct uploads.
-3. Run extraction to turn source text into structured evidence cards.
-4. Review and pin evidence that should shape the note.
-5. Generate or update a section-based topic note.
-6. Inspect changes through note versions, suggestions, dashboard signals, and digests.
-
-The backend keeps the workflow explicit instead of hiding it behind one opaque generation step. Sources, evidence, notes, update runs, and digests all remain visible as separate artifacts.
-
-## Stack
-
-- Backend: FastAPI, SQLModel, SQLite
-- Frontend: Next.js App Router, React, Tailwind CSS
-- Deployment: Docker Compose, Nginx example configuration
-
-## Project structure
-
-```text
-backend/   FastAPI app, models, services, tests
-frontend/  Next.js app, components, client-side flows
-deploy/    Production Nginx example
-```
+- production-minded in structure
+- self-hostable today
+- still maturing in orchestration, OCR, and multi-user depth
 
 ## Quick start
 
-### 1. Backend
+### Backend
 
 ```powershell
 cd backend
@@ -96,7 +144,7 @@ Copy-Item .env.example .env
 uvicorn app.main:app --reload
 ```
 
-### 2. Frontend
+### Frontend
 
 ```powershell
 cd frontend
@@ -105,7 +153,7 @@ Copy-Item .env.local.example .env.local
 npm run dev
 ```
 
-### 3. Open the app
+### Default local endpoints
 
 - Frontend: `http://127.0.0.1:3000`
 - Backend: `http://127.0.0.1:8000`
@@ -119,6 +167,7 @@ make backend-install
 make backend-run
 make backend-test
 make backend-migrate
+make backend-migration-create
 make frontend-install
 make frontend-run
 make frontend-build
@@ -127,82 +176,58 @@ make docker-up-prod
 make docker-down
 ```
 
-## Environment files
+## Configuration surface
 
-Use the example files as the starting point for local or production setup:
+Start from the shipped environment templates:
 
 - `backend/.env.example`
 - `backend/.env.production.example`
 - `frontend/.env.local.example`
 - `frontend/.env.production.example`
 
-Local development uses a seeded demo account only when `APP_ENV=development`:
+In development, a seeded demo account is available only when `APP_ENV=development`:
 
 - `test@example.com`
 - `password123`
 
-For public or production deployment, create real accounts through `POST /auth/register` or your own bootstrap flow.
+For public or production deployments, provision real accounts through `POST /auth/register` or your own bootstrap flow.
 
-## Key routes
+## Delivery and export model
 
-### UI pages
+Research OS treats delivery as a first-class concern rather than an afterthought.
 
-- `/`
-- `/digests`
-- `/projects`
-- `/projects/new`
-- `/projects/[id]`
-- `/projects/[id]/evidence`
-- `/projects/[id]/note`
-- `/projects/[id]/history`
+### Digest delivery targets
 
-### Backend endpoints
+- markdown download
+- bundle download
+- direct Obsidian vault export
+- server-side email delivery
+- server-side webhook delivery
 
-- `POST /papers/search`
-- `POST /papers/projects/{id}/upload-text`
-- `POST /papers/projects/{id}/upload-file`
-- `POST /papers/projects/{id}/extract`
-- `POST /notes/projects/{id}/generate`
-- `POST /projects/{id}/refresh`
-- `GET /projects/{id}/export`
-- `POST /projects/import`
+### Note delivery targets
+
+- markdown download
+- bundle download
+- direct Obsidian vault export
+
+### Relevant endpoints
+
 - `POST /workspace/digests/generate`
 - `POST /workspace/digests/{id}/deliver`
+- `GET /workspace/digests/{id}/download?format=markdown`
+- `GET /workspace/digests/{id}/download?format=bundle`
+- `POST /notes/projects/{id}/export`
+- `GET /notes/projects/{id}/download?format=markdown`
+- `GET /notes/projects/{id}/download?format=bundle`
 
-## Digest and export support
-
-Digests support:
-
-- project activity summary
-- pending review tracking
-- markdown download export
-- Obsidian-ready markdown packaging with frontmatter
-- optional direct Obsidian file export when `OBSIDIAN_EXPORT_ROOT` is configured
-
-To enable direct vault export on the backend host:
+To enable direct Obsidian export on the backend host:
 
 ```powershell
 OBSIDIAN_EXPORT_ROOT=C:\path\to\your\vault
 OBSIDIAN_EXPORT_DIR=Research OS
 ```
 
-Then use `POST /workspace/digests/{id}/deliver` with `{"target":"obsidian_file"}` to write the digest into that vault-relative folder.
-
-Project notes can use the same direct export flow through `POST /notes/projects/{id}/export` with `{"target":"obsidian_file"}`.
-
-Download exports are also available:
-
-- `GET /workspace/digests/{id}/download?format=markdown`
-- `GET /workspace/digests/{id}/download?format=bundle`
-- `GET /notes/projects/{id}/download?format=markdown`
-- `GET /notes/projects/{id}/download?format=bundle`
-
-Digest delivery can also target server-side integrations:
-
-- `POST /workspace/digests/{id}/deliver` with `{"target":"email"}`
-- `POST /workspace/digests/{id}/deliver` with `{"target":"webhook"}`
-
-Configuration:
+Typical outbound delivery configuration:
 
 ```powershell
 DATABASE_MIGRATION_MODE=hybrid
@@ -214,12 +239,20 @@ SMTP_USE_TLS=true
 DIGEST_WEBHOOK_URL=https://example.com/hooks/research-os
 ```
 
-Migration mode behavior:
+## Database and migrations
 
-- `hybrid`: default, bootstraps pre-Alembic legacy databases by stamping `20260531_000001` and then applying newer Alembic revisions such as `20260531_000002`
-- `alembic`: assumes the database is already Alembic-managed and runs Alembic only
+The repository has moved to an Alembic-centered migration model.
 
-Alembic is now included for schema management:
+Supported runtime modes:
+
+- `hybrid`
+  Default mode. It bootstraps pre-Alembic legacy databases by stamping the initial baseline and then upgrading through the current Alembic revision chain.
+- `alembic`
+  Pure Alembic mode for already managed databases.
+
+Health endpoints expose both `database_migration_mode` and `alembic_revision`, which makes migration state visible to operators without shell access.
+
+Standard workflow:
 
 ```powershell
 cd backend
@@ -227,27 +260,36 @@ alembic upgrade head
 alembic revision --autogenerate -m "describe change"
 ```
 
-For the full migration workflow and runtime visibility model, see [MIGRATIONS.md](MIGRATIONS.md).
+Further documentation:
 
-Project backup support includes:
+- [MIGRATIONS.md](MIGRATIONS.md) for the active migration model
+- [LEGACY_MIGRATION.md](LEGACY_MIGRATION.md) for the standalone rescue path used only for very old databases
 
-- full project snapshot export
-- snapshot import into a new project copy
+## Interface and API surface
 
-## Data model
+Primary UI routes:
 
-The main objects in the system are:
+- `/`
+- `/digests`
+- `/projects`
+- `/projects/new`
+- `/projects/[id]`
+- `/projects/[id]/evidence`
+- `/projects/[id]/note`
+- `/projects/[id]/history`
 
-- `Project` for the research topic and refresh preferences
-- `SourcePaper` for uploaded or discovered source material
-- `ProjectPaper` for the link between projects and sources
-- `EvidenceCard` for extracted claims, methods, datasets, limitations, and open questions
-- `TopicNote` for the current working note
-- `TopicNoteVersion` for note history
-- `UpdateRun` for extraction and refresh progress
-- `WorkspaceDigest` for period summaries
+Representative backend endpoints:
 
-## Docker
+- `POST /papers/search`
+- `POST /papers/projects/{id}/upload-text`
+- `POST /papers/projects/{id}/upload-file`
+- `POST /papers/projects/{id}/extract`
+- `POST /notes/projects/{id}/generate`
+- `POST /projects/{id}/refresh`
+- `GET /projects/{id}/export`
+- `POST /projects/import`
+
+## Deployment
 
 For a production-like local stack:
 
@@ -255,7 +297,7 @@ For a production-like local stack:
 docker compose up --build
 ```
 
-The repository includes:
+Repository assets include:
 
 - `backend/Dockerfile`
 - `frontend/Dockerfile`
@@ -263,46 +305,41 @@ The repository includes:
 - `docker-compose.prod.yml`
 - `deploy/nginx.conf`
 
-For deployment details, see [DEPLOYMENT.md](DEPLOYMENT.md).
+Deployment details live in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Verification
 
-Verified locally:
+The repository is regularly validated with:
 
 - `cd backend && pytest -q`
+- `cd backend && python -m compileall app scripts`
 - `cd frontend && npm run build`
-- `cd backend && python -m compileall app`
-
-## Troubleshooting
-
-- Legacy fallback guidance for the deprecated standalone lightweight migration script now lives in [LEGACY_MIGRATION.md](LEGACY_MIGRATION.md).
 
 ## Known limitations
 
-- PDF parsing currently supports text-based PDFs only
-- OCR for scanned PDFs is not implemented yet
-- Refresh and digest scheduling run in-process on a single backend instance
-- Digest delivery does not yet include provider-managed inboxes, retries, or external vault sync beyond file export
-- Direct Obsidian export writes to the backend host filesystem and is intended for trusted single-user or self-hosted setups
-- Email and webhook delivery depend on trusted server-side credentials and endpoints
-- SQLite is intended for lightweight deployment, not high-concurrency traffic
+- PDF parsing currently assumes text-based PDFs; OCR for scanned PDFs is not implemented yet
+- Refresh, extraction, and digest scheduling still run in-process rather than through a dedicated job queue
+- SQLite is appropriate for lightweight deployments, not high-concurrency multi-tenant traffic
+- Direct Obsidian export writes to the backend host filesystem and assumes a trusted self-hosted environment
+- Email and webhook delivery currently rely on trusted server-side credentials and endpoints
 
-## Roadmap
+## Roadmap direction
 
-Planned next steps:
+The most natural next-stage evolution is:
 
 - OCR support for scanned PDFs
-- Stronger outbound digest delivery such as email or webhook targets
-- Better multi-user and multi-instance deployment support
+- background job infrastructure for refresh and extraction workloads
+- stronger multi-user and multi-instance deployment support
+- more durable external sync and delivery integrations
 
-## Contributing
+## Additional documentation
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, validation, and pull request expectations.
-
-## Security
-
-See [SECURITY.md](SECURITY.md) for vulnerability reporting guidance.
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [SECURITY.md](SECURITY.md)
+- [DEPLOYMENT.md](DEPLOYMENT.md)
+- [MIGRATIONS.md](MIGRATIONS.md)
+- [LEGACY_MIGRATION.md](LEGACY_MIGRATION.md)
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE).
+This project is released under the MIT License. See [LICENSE](LICENSE).
