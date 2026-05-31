@@ -25,6 +25,13 @@ cd backend
 python scripts/legacy_lightweight_migrate.py --confirm --dry-run
 ```
 
+For automation or operator tooling, you can also emit the summary as JSON:
+
+```powershell
+cd backend
+python scripts/legacy_lightweight_migrate.py --confirm --dry-run --json
+```
+
 When this mode is used, the backend also emits:
 
 - a `DeprecationWarning`

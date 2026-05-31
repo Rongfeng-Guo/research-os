@@ -87,6 +87,20 @@ def test_legacy_script_dry_run_skips_database_writes(monkeypatch, capsys):
     assert calls == []
 
 
+def test_legacy_script_json_output(monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["legacy_lightweight_migrate.py", "--confirm", "--dry-run", "--json"])
+    monkeypatch.setattr(legacy_lightweight_migrate, "add_column_if_missing", lambda **kwargs: None)
+    monkeypatch.setattr(legacy_lightweight_migrate, "backfill_null", lambda **kwargs: None)
+    monkeypatch.setattr(legacy_lightweight_migrate.SQLModel.metadata, "create_all", lambda engine: None)
+
+    code = legacy_lightweight_migrate.main()
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert '"dry_run": true' in captured.out.lower()
+    assert '"attempted_add_columns"' in captured.out
+
+
 def test_create_db_and_tables_uses_lightweight_path(monkeypatch):
     import pytest
 

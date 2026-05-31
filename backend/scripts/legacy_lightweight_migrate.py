@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import warnings
 import logging
@@ -141,6 +142,11 @@ def main() -> int:
         action="store_true",
         help="Print the planned legacy migration actions without modifying the database.",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the execution summary as JSON.",
+    )
     args = parser.parse_args()
 
     if not args.confirm:
@@ -153,18 +159,24 @@ def main() -> int:
 
     summary = run_legacy_lightweight_migrations(dry_run=args.dry_run)
     if args.dry_run:
-        print(
-            f"Dry run complete. Would attempt {summary.attempted_add_columns} column additions and "
-            f"{summary.attempted_backfills} null backfills.",
-            file=sys.stdout,
-        )
+        if args.json:
+            print(json.dumps(summary.__dict__, indent=2), file=sys.stdout)
+        else:
+            print(
+                f"Dry run complete. Would attempt {summary.attempted_add_columns} column additions and "
+                f"{summary.attempted_backfills} null backfills.",
+                file=sys.stdout,
+            )
         return 0
 
-    print(
-        f"Legacy lightweight migration path completed. Attempted {summary.attempted_add_columns} column additions "
-        f"and {summary.attempted_backfills} null backfills.",
-        file=sys.stdout,
-    )
+    if args.json:
+        print(json.dumps(summary.__dict__, indent=2), file=sys.stdout)
+    else:
+        print(
+            f"Legacy lightweight migration path completed. Attempted {summary.attempted_add_columns} column additions "
+            f"and {summary.attempted_backfills} null backfills.",
+            file=sys.stdout,
+        )
     return 0
 
 
