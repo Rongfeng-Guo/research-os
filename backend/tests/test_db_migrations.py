@@ -64,21 +64,17 @@ def test_lightweight_migrations_log_runtime_warning(tmp_path: Path, caplog):
 
 
 def test_create_db_and_tables_uses_lightweight_path(monkeypatch):
-    calls: list[str] = []
-    monkeypatch.setattr(db, "settings", SimpleNamespace(database_migration_mode="lightweight", database_url="sqlite:///unused.db"))
-    monkeypatch.setattr(db, "run_lightweight_migrations", lambda **kwargs: calls.append("lightweight"))
-    monkeypatch.setattr(db, "bootstrap_legacy_database_for_alembic", lambda **kwargs: calls.append("bootstrap"))
-    monkeypatch.setattr(db, "run_alembic_migrations", lambda **kwargs: calls.append("alembic"))
+    import pytest
 
-    db.create_db_and_tables()
+    settings = Settings(database_migration_mode="lightweight")
 
-    assert calls == ["lightweight"]
+    with pytest.raises(ValueError, match="DATABASE_MIGRATION_MODE must be one of: alembic, hybrid"):
+        settings.validate()
 
 
 def test_create_db_and_tables_uses_hybrid_path(monkeypatch):
     calls: list[str] = []
     monkeypatch.setattr(db, "settings", SimpleNamespace(database_migration_mode="hybrid", database_url="sqlite:///hybrid.db"))
-    monkeypatch.setattr(db, "run_lightweight_migrations", lambda **kwargs: calls.append("lightweight"))
     monkeypatch.setattr(db, "bootstrap_legacy_database_for_alembic", lambda **kwargs: calls.append("bootstrap"))
     monkeypatch.setattr(db, "run_alembic_migrations", lambda **kwargs: calls.append("alembic"))
 
@@ -90,7 +86,6 @@ def test_create_db_and_tables_uses_hybrid_path(monkeypatch):
 def test_create_db_and_tables_uses_alembic_only_path(monkeypatch):
     calls: list[str] = []
     monkeypatch.setattr(db, "settings", SimpleNamespace(database_migration_mode="alembic", database_url="sqlite:///alembic.db"))
-    monkeypatch.setattr(db, "run_lightweight_migrations", lambda **kwargs: calls.append("lightweight"))
     monkeypatch.setattr(db, "bootstrap_legacy_database_for_alembic", lambda **kwargs: calls.append("bootstrap"))
     monkeypatch.setattr(db, "run_alembic_migrations", lambda **kwargs: calls.append("alembic"))
 
@@ -99,10 +94,10 @@ def test_create_db_and_tables_uses_alembic_only_path(monkeypatch):
     assert calls == ["bootstrap", "alembic"]
 
 
-def test_settings_require_confirmation_for_lightweight_mode():
-    settings = Settings(database_migration_mode="lightweight", lightweight_migration_confirm=False)
+def test_settings_reject_lightweight_mode():
+    settings = Settings(database_migration_mode="lightweight")
 
     import pytest
 
-    with pytest.raises(ValueError, match="LIGHTWEIGHT_MIGRATION_CONFIRM=true is required"):
+    with pytest.raises(ValueError, match="DATABASE_MIGRATION_MODE must be one of: alembic, hybrid"):
         settings.validate()

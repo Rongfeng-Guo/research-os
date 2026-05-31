@@ -273,7 +273,7 @@ Verified locally:
 
 ## Troubleshooting
 
-- Legacy fallback guidance for deprecated `DATABASE_MIGRATION_MODE=lightweight` now lives in [LEGACY_MIGRATION.md](LEGACY_MIGRATION.md).
+- Legacy fallback guidance for the deprecated standalone lightweight migration script now lives in [LEGACY_MIGRATION.md](LEGACY_MIGRATION.md).
 
 ## Known limitations
 

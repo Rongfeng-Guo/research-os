@@ -54,7 +54,6 @@ class Settings:
     scheduler_poll_seconds: int = _get_int("SCHEDULER_POLL_SECONDS", 60)
     digest_window_days: int = _get_int("DIGEST_WINDOW_DAYS", 7)
     database_migration_mode: str = os.getenv("DATABASE_MIGRATION_MODE", "hybrid").strip().lower()
-    lightweight_migration_confirm: bool = _get_bool("LIGHTWEIGHT_MIGRATION_CONFIRM", False)
     obsidian_export_dir: str = os.getenv("OBSIDIAN_EXPORT_DIR", "Research OS").strip()
     obsidian_export_root: str = os.getenv("OBSIDIAN_EXPORT_ROOT", "").strip()
     smtp_host: str = os.getenv("SMTP_HOST", "").strip()
@@ -77,10 +76,8 @@ class Settings:
             raise ValueError("PAPER_DISCOVERY_PROVIDER must be one of: mock, openalex, arxiv")
         if self.extraction_provider not in {"mock", "llm"}:
             raise ValueError("EXTRACTION_PROVIDER must be one of: mock, llm")
-        if self.database_migration_mode not in {"lightweight", "alembic", "hybrid"}:
-            raise ValueError("DATABASE_MIGRATION_MODE must be one of: lightweight, alembic, hybrid")
-        if self.database_migration_mode == "lightweight" and not self.lightweight_migration_confirm:
-            raise ValueError("LIGHTWEIGHT_MIGRATION_CONFIRM=true is required when DATABASE_MIGRATION_MODE=lightweight")
+        if self.database_migration_mode not in {"alembic", "hybrid"}:
+            raise ValueError("DATABASE_MIGRATION_MODE must be one of: alembic, hybrid")
         if self.extraction_provider == "llm" and not self.openai_api_key and not self.extraction_allow_fallback:
             raise ValueError("OPENAI_API_KEY is required when EXTRACTION_PROVIDER=llm and EXTRACTION_ALLOW_FALLBACK=false")
         if not self.database_url:
