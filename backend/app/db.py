@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 from sqlmodel import Session, SQLModel, create_engine
 
 from .settings import settings
@@ -14,9 +14,8 @@ def create_db_and_tables() -> None:
         SQLModel.metadata.create_all(engine)
         run_lightweight_migrations()
         return
+    bootstrap_legacy_database_for_alembic()
     run_alembic_migrations()
-    if settings.database_migration_mode == "hybrid":
-        run_lightweight_migrations()
 
 
 def run_alembic_migrations() -> None:
@@ -29,6 +28,45 @@ def run_alembic_migrations() -> None:
     config.set_main_option("script_location", str(backend_dir / "migrations"))
     config.set_main_option("sqlalchemy.url", settings.database_url)
     command.upgrade(config, "head")
+
+
+def stamp_alembic_revision(revision: str) -> None:
+    from alembic import command
+    from alembic.config import Config
+
+    backend_dir = Path(__file__).resolve().parents[1]
+    alembic_ini = backend_dir / "alembic.ini"
+    config = Config(str(alembic_ini))
+    config.set_main_option("script_location", str(backend_dir / "migrations"))
+    config.set_main_option("sqlalchemy.url", settings.database_url)
+    command.stamp(config, revision)
+
+
+def _has_user_tables() -> bool:
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        table_names = set(inspector.get_table_names())
+    return bool(table_names - {"alembic_version"})
+
+
+def _has_alembic_version_table() -> bool:
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        return "alembic_version" in set(inspector.get_table_names())
+
+
+def _get_alembic_revision() -> str | None:
+    if not _has_alembic_version_table():
+        return None
+    with engine.begin() as connection:
+        row = connection.execute(text("SELECT version_num FROM alembic_version LIMIT 1")).fetchone()
+    return str(row[0]) if row else None
+
+
+def bootstrap_legacy_database_for_alembic() -> None:
+    if not _has_user_tables() or _has_alembic_version_table():
+        return
+    stamp_alembic_revision("20260531_000001")
 
 
 def _add_column_if_missing(table_name: str, column_name: str, ddl: str) -> None:
