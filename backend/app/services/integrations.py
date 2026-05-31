@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 from .digest_service import digest_slug
 from ..settings import settings
@@ -28,11 +29,11 @@ class PlaceholderZoteroSyncService(ZoteroSyncService):
 
 
 class PlaceholderObsidianExportService(ObsidianExportService):
-    def export_note(self, project_id: int, markdown: str) -> dict:
+    def _build_payload(self, *, project_id: int, markdown: str, export_dir: str | None = None) -> dict:
+        resolved_export_dir = (export_dir if export_dir is not None else settings.obsidian_export_dir).strip().strip("/\\")
         export_label = f"weekly-digest-{project_id or 'workspace'}"
         filename = f"{digest_slug(export_label)}.md"
-        export_dir = settings.obsidian_export_dir.strip().strip("/\\")
-        relative_path = f"{export_dir}/{filename}" if export_dir else filename
+        relative_path = f"{resolved_export_dir}/{filename}" if resolved_export_dir else filename
         frontmatter = [
             "---",
             "source: research-os",
@@ -53,3 +54,28 @@ class PlaceholderObsidianExportService(ObsidianExportService):
             "content": rendered_markdown,
             "preview_length": len(rendered_markdown),
         }
+
+    def export_note(self, project_id: int, markdown: str) -> dict:
+        return self._build_payload(project_id=project_id, markdown=markdown)
+
+
+class FileObsidianExportService(PlaceholderObsidianExportService):
+    def __init__(self, *, export_root: str | Path, export_dir: str | None = None):
+        self.export_root = Path(export_root).expanduser()
+        self.export_dir = (export_dir if export_dir is not None else settings.obsidian_export_dir).strip().strip("/\\")
+
+    def export_note(self, project_id: int, markdown: str) -> dict:
+        if not str(self.export_root).strip():
+            raise ValueError("OBSIDIAN_EXPORT_ROOT must be configured for file export")
+
+        payload = self._build_payload(project_id=project_id, markdown=markdown, export_dir=self.export_dir)
+        target_dir = self.export_root / self.export_dir if self.export_dir else self.export_root
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_path = target_dir / payload["filename"]
+        target_path.write_text(payload["content"], encoding="utf-8")
+        payload["export_root"] = str(self.export_root)
+        payload["absolute_path"] = str(target_path.resolve())
+        payload["bytes_written"] = target_path.stat().st_size
+        payload["status"] = "written"
+        payload["message"] = f"Wrote an Obsidian-ready markdown export to {target_path.resolve()}."
+        return payload

@@ -176,6 +176,16 @@ Digests support:
 - pending review tracking
 - markdown download export
 - Obsidian-ready markdown packaging with frontmatter
+- optional direct Obsidian file export when `OBSIDIAN_EXPORT_ROOT` is configured
+
+To enable direct vault export on the backend host:
+
+```powershell
+OBSIDIAN_EXPORT_ROOT=C:\path\to\your\vault
+OBSIDIAN_EXPORT_DIR=Research OS
+```
+
+Then use `POST /workspace/digests/{id}/deliver` with `{"target":"obsidian_file"}` to write the digest into that vault-relative folder.
 
 Project backup support includes:
 
@@ -227,6 +237,7 @@ Verified locally:
 - OCR for scanned PDFs is not implemented yet
 - Refresh and digest scheduling run in-process on a single backend instance
 - Digest delivery does not yet include direct email, webhook, or external vault sync
+- Direct Obsidian export writes to the backend host filesystem and is intended for trusted single-user or self-hosted setups
 - The schema migration approach is lightweight and does not use Alembic
 - SQLite is intended for lightweight deployment, not high-concurrency traffic
 
@@ -236,7 +247,6 @@ Planned next steps:
 
 - OCR support for scanned PDFs
 - Stronger outbound digest delivery such as email or webhook targets
-- Optional direct vault export instead of download-only Obsidian packaging
 - Better multi-user and multi-instance deployment support
 - More robust database migration tooling
 

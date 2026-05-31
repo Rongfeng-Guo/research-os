@@ -124,33 +124,25 @@ export default function DigestsPage() {
   async function exportObsidianMarkdown() {
     if (!activeDigest) return;
     setBusyAction("obsidian");
-    setStatus("Preparing Obsidian-ready digest export...");
+    setStatus("Writing Obsidian-ready digest export...");
     try {
       const result = await apiFetch<DigestDeliveryResult>(`/workspace/digests/${activeDigest.id}/deliver`, {
         method: "POST",
-        body: JSON.stringify({ target: "obsidian_placeholder" }),
+        body: JSON.stringify({ target: "obsidian_file" }),
       });
       await loadDigests();
-      const markdown = result.payload?.content || activeDigest.markdown;
-      const filename = result.payload?.filename || `obsidian-digest-${activeDigest.id}.md`;
-      const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(url);
       const vaultPath = result.payload?.vault_relative_path;
+      const absolutePath = typeof result.payload?.absolute_path === "string" ? result.payload.absolute_path : null;
       setStatus(result.message || "Obsidian-ready markdown export prepared.");
       showToast({
         tone: "success",
-        title: "Obsidian export prepared",
-        message: vaultPath ? `Downloaded markdown for ${vaultPath}.` : "Downloaded an Obsidian-ready digest markdown file.",
+        title: "Obsidian export written",
+        message: absolutePath || vaultPath ? `Saved digest to ${absolutePath || vaultPath}.` : "Saved an Obsidian-ready digest markdown file.",
       });
     } catch (error) {
       const message = getApiErrorMessage(error, "Failed to deliver digest");
       setStatus(message);
-      showToast({ tone: "error", title: "Could not prepare Obsidian export", message });
+      showToast({ tone: "error", title: "Could not write Obsidian export", message });
     } finally {
       setBusyAction(null);
     }
@@ -268,7 +260,10 @@ export default function DigestsPage() {
                     Target: <span className="font-medium text-slate-800">{activeDigest.delivery_target || "not set"}</span>
                   </p>
                   {activeDigest.delivery_target === "obsidian_placeholder" ? (
-                    <p className="mt-1">Latest Obsidian export prepares a markdown file with frontmatter and a suggested vault-relative path.</p>
+                    <p className="mt-1">Latest Obsidian export prepared a markdown file with frontmatter and a suggested vault-relative path.</p>
+                  ) : null}
+                  {activeDigest.delivery_target === "obsidian_file" ? (
+                    <p className="mt-1">Latest Obsidian export wrote a markdown file into the configured vault root on the backend host.</p>
                   ) : null}
                   {activeDigest.delivery_message ? <p className="mt-1">{activeDigest.delivery_message}</p> : null}
                   {activeDigest.delivered_at ? (

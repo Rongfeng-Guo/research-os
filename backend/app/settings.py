@@ -54,6 +54,7 @@ class Settings:
     scheduler_poll_seconds: int = _get_int("SCHEDULER_POLL_SECONDS", 60)
     digest_window_days: int = _get_int("DIGEST_WINDOW_DAYS", 7)
     obsidian_export_dir: str = os.getenv("OBSIDIAN_EXPORT_DIR", "Research OS").strip()
+    obsidian_export_root: str = os.getenv("OBSIDIAN_EXPORT_ROOT", "").strip()
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "").strip()
     openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")

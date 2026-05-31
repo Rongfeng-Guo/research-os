@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.models import Project
+from app.services.integrations import FileObsidianExportService
 from app.services.project_health import ensure_refresh_schedule, freshness_status
 from app.time_utils import utc_now
 
@@ -207,3 +210,47 @@ def test_digest_delivery_routes_update_status_and_enforce_ownership(client, auth
         headers=second_auth_headers,
     )
     assert forbidden.status_code == 404
+
+
+def test_digest_delivery_can_write_obsidian_file(client, auth_headers, monkeypatch, tmp_path: Path):
+    project = client.post(
+        "/projects",
+        json={"title": "Obsidian Project", "topic": "vault export", "description": ""},
+        headers=auth_headers,
+    ).json()
+    client.patch(
+        f"/projects/{project['id']}/preferences",
+        json={"auto_refresh_enabled": True, "refresh_cadence": "weekly", "digest_enabled": True},
+        headers=auth_headers,
+    )
+    client.post(
+        f"/papers/projects/{project['id']}/upload-text",
+        json={"title": "Vault source", "text": "Digest should be written to disk.", "content_type": "text"},
+        headers=auth_headers,
+    )
+
+    digest = client.post("/workspace/digests/generate?days=7", headers=auth_headers)
+    assert digest.status_code == 200
+    digest_id = digest.json()["id"]
+
+    def build_file_service(target: str):
+        if target == "obsidian_file":
+            return FileObsidianExportService(export_root=tmp_path, export_dir="Vault/Research OS")
+        raise AssertionError(f"Unexpected target: {target}")
+
+    monkeypatch.setattr("app.services.digest_delivery.get_obsidian_export_service", build_file_service)
+
+    delivery = client.post(
+        f"/workspace/digests/{digest_id}/deliver",
+        json={"target": "obsidian_file"},
+        headers=auth_headers,
+    )
+    assert delivery.status_code == 200
+    payload = delivery.json()
+    assert payload["status"] == "written"
+    assert payload["target"] == "obsidian_file"
+    assert payload["payload"]["vault_relative_path"].startswith("Vault/Research OS/")
+    written_path = Path(payload["payload"]["absolute_path"])
+    assert written_path.exists()
+    assert written_path.read_text(encoding="utf-8").startswith("---\nsource: research-os")
+    assert payload["payload"]["bytes_written"] > 0

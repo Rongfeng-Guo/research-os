@@ -5,11 +5,18 @@ import json
 from sqlmodel import Session
 
 from ..models import WorkspaceDigest
+from ..settings import settings
 from ..time_utils import utc_now
-from .integrations import PlaceholderObsidianExportService
+from .integrations import FileObsidianExportService, PlaceholderObsidianExportService
 
 
-SUPPORTED_DIGEST_DELIVERY_TARGETS = {"download_markdown", "obsidian_placeholder"}
+SUPPORTED_DIGEST_DELIVERY_TARGETS = {"download_markdown", "obsidian_placeholder", "obsidian_file"}
+
+
+def get_obsidian_export_service(target: str):
+    if target == "obsidian_file":
+        return FileObsidianExportService(export_root=settings.obsidian_export_root)
+    return PlaceholderObsidianExportService()
 
 
 def deliver_digest(session: Session, *, digest: WorkspaceDigest, target: str) -> dict:
@@ -34,7 +41,7 @@ def deliver_digest(session: Session, *, digest: WorkspaceDigest, target: str) ->
         digest.delivery_message = "Digest markdown is ready for download."
         digest.delivered_at = utc_now()
     else:
-        obsidian = PlaceholderObsidianExportService()
+        obsidian = get_obsidian_export_service(requested_target)
         result = obsidian.export_note(project_id=0, markdown=digest.markdown)
         payload = result
         digest.delivery_status = result.get("status", "prepared")
