@@ -15,7 +15,11 @@ class ZoteroSyncService(ABC):
 
 class ObsidianExportService(ABC):
     @abstractmethod
-    def export_note(self, project_id: int, markdown: str) -> dict:
+    def export_digest(self, markdown: str) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
+    def export_project_note(self, project_id: int, note_title: str, markdown: str) -> dict:
         raise NotImplementedError
 
 
@@ -29,20 +33,29 @@ class PlaceholderZoteroSyncService(ZoteroSyncService):
 
 
 class PlaceholderObsidianExportService(ObsidianExportService):
-    def _build_payload(self, *, project_id: int, markdown: str, export_dir: str | None = None) -> dict:
+    def _build_payload(
+        self,
+        *,
+        project_id: int,
+        markdown: str,
+        export_label: str,
+        kind: str,
+        export_dir: str | None = None,
+        extra_frontmatter: dict[str, str | int] | None = None,
+    ) -> dict:
         resolved_export_dir = (export_dir if export_dir is not None else settings.obsidian_export_dir).strip().strip("/\\")
-        export_label = f"weekly-digest-{project_id or 'workspace'}"
         filename = f"{digest_slug(export_label)}.md"
         relative_path = f"{resolved_export_dir}/{filename}" if resolved_export_dir else filename
         frontmatter = [
             "---",
             "source: research-os",
-            "kind: workspace_digest",
+            f"kind: {kind}",
             f"project_id: {project_id}",
             f"vault_path: {relative_path}",
-            "---",
-            "",
         ]
+        for key, value in (extra_frontmatter or {}).items():
+            frontmatter.append(f"{key}: {value}")
+        frontmatter.extend(["---", ""])
         rendered_markdown = "\n".join(frontmatter) + markdown.strip() + "\n"
         return {
             "status": "prepared",
@@ -55,8 +68,22 @@ class PlaceholderObsidianExportService(ObsidianExportService):
             "preview_length": len(rendered_markdown),
         }
 
-    def export_note(self, project_id: int, markdown: str) -> dict:
-        return self._build_payload(project_id=project_id, markdown=markdown)
+    def export_digest(self, markdown: str) -> dict:
+        return self._build_payload(
+            project_id=0,
+            markdown=markdown,
+            export_label="weekly-digest-workspace",
+            kind="workspace_digest",
+        )
+
+    def export_project_note(self, project_id: int, note_title: str, markdown: str) -> dict:
+        return self._build_payload(
+            project_id=project_id,
+            markdown=markdown,
+            export_label=note_title or f"project-note-{project_id}",
+            kind="topic_note",
+            extra_frontmatter={"note_title": note_title or f"Project Note {project_id}"},
+        )
 
 
 class FileObsidianExportService(PlaceholderObsidianExportService):
@@ -64,11 +91,10 @@ class FileObsidianExportService(PlaceholderObsidianExportService):
         self.export_root = Path(export_root).expanduser()
         self.export_dir = (export_dir if export_dir is not None else settings.obsidian_export_dir).strip().strip("/\\")
 
-    def export_note(self, project_id: int, markdown: str) -> dict:
+    def _write_payload(self, payload: dict) -> dict:
         if not str(self.export_root).strip():
             raise ValueError("OBSIDIAN_EXPORT_ROOT must be configured for file export")
 
-        payload = self._build_payload(project_id=project_id, markdown=markdown, export_dir=self.export_dir)
         target_dir = self.export_root / self.export_dir if self.export_dir else self.export_root
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / payload["filename"]
@@ -79,3 +105,24 @@ class FileObsidianExportService(PlaceholderObsidianExportService):
         payload["status"] = "written"
         payload["message"] = f"Wrote an Obsidian-ready markdown export to {target_path.resolve()}."
         return payload
+
+    def export_digest(self, markdown: str) -> dict:
+        payload = self._build_payload(
+            project_id=0,
+            markdown=markdown,
+            export_label="weekly-digest-workspace",
+            kind="workspace_digest",
+            export_dir=self.export_dir,
+        )
+        return self._write_payload(payload)
+
+    def export_project_note(self, project_id: int, note_title: str, markdown: str) -> dict:
+        payload = self._build_payload(
+            project_id=project_id,
+            markdown=markdown,
+            export_label=note_title or f"project-note-{project_id}",
+            kind="topic_note",
+            export_dir=self.export_dir,
+            extra_frontmatter={"note_title": note_title or f"Project Note {project_id}"},
+        )
+        return self._write_payload(payload)

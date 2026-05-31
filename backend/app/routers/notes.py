@@ -10,6 +10,8 @@ from ..models import EvidenceCard, NoteUpdateSuggestion, Project, ProjectPaper, 
 from ..schemas import (
     ApplySuggestionsRequest,
     NoteSectionUpdate,
+    NoteExportRead,
+    NoteExportRequest,
     NoteUpdateSuggestionRead,
     SuggestionStatusUpdate,
     TopicNoteRead,
@@ -18,6 +20,7 @@ from ..schemas import (
     VersionComparisonRead,
 )
 from ..services.diffing import build_diff_payload
+from ..services.note_delivery import export_project_note
 from ..services.note_generation import build_note
 from ..services.note_sections import get_section, merge_generated_sections, normalize_note_sections, render_note_markdown, sections_to_json
 from ..services.note_versions import create_note_version, version_to_read
@@ -250,6 +253,21 @@ def get_project_note(
 ):
     _, note = _load_project_note(session, project_id, current_user)
     return _note_to_read(note)
+
+
+@router.post("/projects/{project_id}/export", response_model=NoteExportRead)
+def export_note(
+    project_id: int,
+    payload: NoteExportRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    _, note = _load_project_note(session, project_id, current_user)
+    try:
+        result = export_project_note(note=note, target=payload.target)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return NoteExportRead(**result)
 
 
 @router.patch("/projects/{project_id}/sections/{section_slug}", response_model=TopicNoteRead)

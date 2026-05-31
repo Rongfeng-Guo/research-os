@@ -42,7 +42,7 @@ def deliver_digest(session: Session, *, digest: WorkspaceDigest, target: str) ->
         digest.delivered_at = utc_now()
     else:
         obsidian = get_obsidian_export_service(requested_target)
-        result = obsidian.export_note(project_id=0, markdown=digest.markdown)
+        result = obsidian.export_digest(digest.markdown)
         payload = result
         digest.delivery_status = result.get("status", "prepared")
         digest.delivery_target = requested_target

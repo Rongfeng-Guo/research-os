@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+
+from app.services.integrations import FileObsidianExportService
 
 
 def _build_test_pdf_bytes(text: str | list[str]) -> bytes:
@@ -220,3 +223,49 @@ def test_export_and_import_project_snapshot(client: TestClient, auth_headers: di
     assert payload["note_versions"]
     assert payload["papers"][0]["origin"] == "import_snapshot"
     assert any(card["is_pinned"] for card in payload["evidence_cards"])
+
+
+def test_export_project_note_to_obsidian_file(client: TestClient, auth_headers: dict[str, str], monkeypatch, tmp_path: Path):
+    project = client.post(
+        "/projects",
+        json={"title": "Exported Note Project", "topic": "knowledge capture", "description": ""},
+        headers=auth_headers,
+    ).json()
+
+    client.post(
+        f"/papers/projects/{project['id']}/upload-text",
+        json={
+            "title": "Note source",
+            "text": "This source should appear in the exported project note.",
+            "content_type": "text",
+        },
+        headers=auth_headers,
+    )
+    client.post(f"/papers/projects/{project['id']}/extract", headers=auth_headers)
+    note_response = client.post(f"/notes/projects/{project['id']}/generate", headers=auth_headers)
+    assert note_response.status_code == 200
+
+    def build_file_service(target: str):
+        if target == "obsidian_file":
+            return FileObsidianExportService(export_root=tmp_path, export_dir="Vault/Research OS")
+        raise AssertionError(f"Unexpected target: {target}")
+
+    monkeypatch.setattr("app.services.note_delivery.get_obsidian_export_service", build_file_service)
+
+    export_response = client.post(
+        f"/notes/projects/{project['id']}/export",
+        json={"target": "obsidian_file"},
+        headers=auth_headers,
+    )
+    assert export_response.status_code == 200
+    payload = export_response.json()
+    assert payload["project_id"] == project["id"]
+    assert payload["status"] == "written"
+    assert payload["target"] == "obsidian_file"
+    assert payload["payload"]["vault_relative_path"].startswith("Vault/Research OS/")
+    assert payload["payload"]["filename"].endswith(".md")
+    written_path = Path(payload["payload"]["absolute_path"])
+    assert written_path.exists()
+    written_content = written_path.read_text(encoding="utf-8")
+    assert "kind: topic_note" in written_content
+    assert "note_title: Exported Note Project Research Note" in written_content

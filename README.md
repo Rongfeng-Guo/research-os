@@ -187,6 +187,8 @@ OBSIDIAN_EXPORT_DIR=Research OS
 
 Then use `POST /workspace/digests/{id}/deliver` with `{"target":"obsidian_file"}` to write the digest into that vault-relative folder.
 
+Project notes can use the same direct export flow through `POST /notes/projects/{id}/export` with `{"target":"obsidian_file"}`.
+
 Project backup support includes:
 
 - full project snapshot export

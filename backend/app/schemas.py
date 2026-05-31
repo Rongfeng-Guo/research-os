@@ -371,6 +371,19 @@ class DigestDeliveryRead(ReadModel):
     payload: dict = {}
 
 
+class NoteExportRequest(ReadModel):
+    target: str
+
+
+class NoteExportRead(ReadModel):
+    project_id: int
+    note_id: int
+    status: str
+    target: str
+    message: str = ""
+    payload: dict = {}
+
+
 class ProjectDetail(ReadModel):
     project: ProjectRead
     papers: List[ProjectPaperRead]

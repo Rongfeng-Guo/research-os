@@ -8,6 +8,7 @@ import { setLastProjectId } from "@/lib/local-state";
 import { useToast } from "@/components/ToastProvider";
 
 type TopicNote = {
+  id?: number;
   markdown: string;
   title: string;
   sections: NoteSection[];
@@ -21,12 +22,22 @@ type TopicNote = {
   };
 };
 
+type NoteExportResult = {
+  project_id: number;
+  note_id: number;
+  status: string;
+  target: string;
+  message: string;
+  payload?: { absolute_path?: string; vault_relative_path?: string; [key: string]: unknown };
+};
+
 export default function NotePage({ params }: { params: { id: string } }) {
   const projectId = Number(params.id);
   const { showToast } = useToast();
   const [note, setNote] = useState<TopicNote | null>(null);
   const [status, setStatus] = useState("Loading note...");
   const [needsGeneration, setNeedsGeneration] = useState(false);
+  const [exportingObsidian, setExportingObsidian] = useState(false);
 
   async function loadNote() {
     const data = await apiFetchOrNull<TopicNote>(`/notes/projects/${projectId}`);
@@ -84,6 +95,31 @@ export default function NotePage({ params }: { params: { id: string } }) {
     }
   }
 
+  async function exportToObsidian() {
+    setExportingObsidian(true);
+    setStatus("Writing topic note to Obsidian...");
+    try {
+      const result = await apiFetch<NoteExportResult>(`/notes/projects/${projectId}/export`, {
+        method: "POST",
+        body: JSON.stringify({ target: "obsidian_file" }),
+      });
+      const absolutePath = typeof result.payload?.absolute_path === "string" ? result.payload.absolute_path : null;
+      const vaultPath = typeof result.payload?.vault_relative_path === "string" ? result.payload.vault_relative_path : null;
+      setStatus(result.message || "Topic note written to Obsidian.");
+      showToast({
+        tone: "success",
+        title: "Topic note exported",
+        message: absolutePath || vaultPath ? `Saved note to ${absolutePath || vaultPath}.` : "Saved the topic note to the configured Obsidian export path.",
+      });
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Failed to export topic note");
+      setStatus(message);
+      showToast({ tone: "error", title: "Could not export topic note", message });
+    } finally {
+      setExportingObsidian(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <section className="card">
@@ -96,6 +132,9 @@ export default function NotePage({ params }: { params: { id: string } }) {
             </p>
           </div>
           <div className="flex gap-2">
+            <button className="btn-secondary" disabled={!note || exportingObsidian} onClick={() => void exportToObsidian()} type="button">
+              {exportingObsidian ? "Writing..." : "Export to Obsidian"}
+            </button>
             <Link className="btn-secondary" href={`/projects/${projectId}/history`}>History</Link>
             <Link className="btn-secondary" href={`/projects/${projectId}`}>Back to project</Link>
           </div>
