@@ -5,6 +5,7 @@ from pathlib import Path
 from sqlmodel import create_engine
 
 from app import db
+from app import migration_bootstrap
 
 
 def test_bootstrap_legacy_database_for_alembic_stamps_initial_revision(monkeypatch, tmp_path: Path):
@@ -16,10 +17,9 @@ def test_bootstrap_legacy_database_for_alembic_stamps_initial_revision(monkeypat
         )
 
     stamped: list[str] = []
-    monkeypatch.setattr(db, "engine", legacy_engine)
-    monkeypatch.setattr(db, "stamp_alembic_revision", lambda revision: stamped.append(revision))
+    monkeypatch.setattr(migration_bootstrap, "stamp_alembic_revision", lambda **kwargs: stamped.append(kwargs["revision"]))
 
-    db.bootstrap_legacy_database_for_alembic()
+    migration_bootstrap.bootstrap_legacy_database_for_alembic(engine=legacy_engine, database_url="sqlite:///legacy.db")
 
     assert stamped == ["20260531_000001"]
 
@@ -29,9 +29,21 @@ def test_bootstrap_legacy_database_for_alembic_skips_empty_database(monkeypatch,
     empty_engine = create_engine(f"sqlite:///{empty_db_path}", connect_args={"check_same_thread": False})
 
     stamped: list[str] = []
-    monkeypatch.setattr(db, "engine", empty_engine)
-    monkeypatch.setattr(db, "stamp_alembic_revision", lambda revision: stamped.append(revision))
+    monkeypatch.setattr(migration_bootstrap, "stamp_alembic_revision", lambda **kwargs: stamped.append(kwargs["revision"]))
 
-    db.bootstrap_legacy_database_for_alembic()
+    migration_bootstrap.bootstrap_legacy_database_for_alembic(engine=empty_engine, database_url="sqlite:///empty.db")
 
     assert stamped == []
+
+
+def test_lightweight_migrations_emit_deprecation_warning(tmp_path: Path):
+    db_path = tmp_path / "lightweight.db"
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+
+    import warnings
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        migration_bootstrap.run_lightweight_migrations(engine=engine)
+
+    assert any(item.category is DeprecationWarning for item in caught)

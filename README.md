@@ -218,7 +218,7 @@ Migration mode behavior:
 
 - `hybrid`: default, bootstraps pre-Alembic legacy databases by stamping `20260531_000001` and then applying newer Alembic revisions such as `20260531_000002`
 - `alembic`: assumes the database is already Alembic-managed and runs Alembic only
-- `lightweight`: legacy fallback that still uses the old runtime column patching path
+- `lightweight`: deprecated emergency fallback that still uses the old runtime column patching path
 
 Alembic is now included for schema management:
 

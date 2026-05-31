@@ -1,8 +1,6 @@
-from pathlib import Path
+from sqlmodel import Session, create_engine
 
-from sqlalchemy import inspect, text
-from sqlmodel import Session, SQLModel, create_engine
-
+from .migration_bootstrap import bootstrap_legacy_database_for_alembic, run_alembic_migrations, run_lightweight_migrations
 from .settings import settings
 
 DATABASE_URL = settings.database_url
@@ -11,158 +9,10 @@ engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_threa
 
 def create_db_and_tables() -> None:
     if settings.database_migration_mode == "lightweight":
-        SQLModel.metadata.create_all(engine)
-        run_lightweight_migrations()
+        run_lightweight_migrations(engine=engine)
         return
-    bootstrap_legacy_database_for_alembic()
-    run_alembic_migrations()
-
-
-def run_alembic_migrations() -> None:
-    from alembic import command
-    from alembic.config import Config
-
-    backend_dir = Path(__file__).resolve().parents[1]
-    alembic_ini = backend_dir / "alembic.ini"
-    config = Config(str(alembic_ini))
-    config.set_main_option("script_location", str(backend_dir / "migrations"))
-    config.set_main_option("sqlalchemy.url", settings.database_url)
-    command.upgrade(config, "head")
-
-
-def stamp_alembic_revision(revision: str) -> None:
-    from alembic import command
-    from alembic.config import Config
-
-    backend_dir = Path(__file__).resolve().parents[1]
-    alembic_ini = backend_dir / "alembic.ini"
-    config = Config(str(alembic_ini))
-    config.set_main_option("script_location", str(backend_dir / "migrations"))
-    config.set_main_option("sqlalchemy.url", settings.database_url)
-    command.stamp(config, revision)
-
-
-def _has_user_tables() -> bool:
-    with engine.begin() as connection:
-        inspector = inspect(connection)
-        table_names = set(inspector.get_table_names())
-    return bool(table_names - {"alembic_version"})
-
-
-def _has_alembic_version_table() -> bool:
-    with engine.begin() as connection:
-        inspector = inspect(connection)
-        return "alembic_version" in set(inspector.get_table_names())
-
-
-def _get_alembic_revision() -> str | None:
-    if not _has_alembic_version_table():
-        return None
-    with engine.begin() as connection:
-        row = connection.execute(text("SELECT version_num FROM alembic_version LIMIT 1")).fetchone()
-    return str(row[0]) if row else None
-
-
-def bootstrap_legacy_database_for_alembic() -> None:
-    if not _has_user_tables() or _has_alembic_version_table():
-        return
-    stamp_alembic_revision("20260531_000001")
-
-
-def _add_column_if_missing(table_name: str, column_name: str, ddl: str) -> None:
-    with engine.begin() as connection:
-        inspector = inspect(connection)
-        columns = {column["name"] for column in inspector.get_columns(table_name)}
-        if column_name not in columns:
-            connection.exec_driver_sql(f"ALTER TABLE {table_name} ADD COLUMN {ddl}")
-
-
-def _backfill_null(table_name: str, column_name: str, replacement_sql: str) -> None:
-    with engine.begin() as connection:
-        connection.exec_driver_sql(
-            f"UPDATE {table_name} SET {column_name} = {replacement_sql} WHERE {column_name} IS NULL"
-        )
-
-
-def run_lightweight_migrations() -> None:
-    column_migrations = [
-        ("searchrun", "provider", "provider TEXT DEFAULT 'mock'"),
-        ("searchrun", "status", "status TEXT DEFAULT 'completed'"),
-        ("searchrun", "error_message", "error_message TEXT DEFAULT ''"),
-        ("sourcepaper", "content_text", "content_text TEXT DEFAULT ''"),
-        ("sourcepaper", "content_type", "content_type TEXT DEFAULT 'abstract'"),
-        ("sourcepaper", "source_type", "source_type TEXT DEFAULT 'paper'"),
-        ("sourcepaper", "origin", "origin TEXT DEFAULT 'search'"),
-        ("sourcepaper", "ingestion_status", "ingestion_status TEXT DEFAULT 'completed'"),
-        ("sourcepaper", "pdf_status", "pdf_status TEXT DEFAULT 'pending'"),
-        ("sourcepaper", "extraction_status", "extraction_status TEXT DEFAULT 'pending'"),
-        ("sourcepaper", "extraction_error", "extraction_error TEXT DEFAULT ''"),
-        ("sourcepaper", "source_metadata", "source_metadata TEXT DEFAULT '{}'"),
-        ("project", "auto_refresh_enabled", "auto_refresh_enabled BOOLEAN DEFAULT 0"),
-        ("project", "refresh_cadence", "refresh_cadence TEXT DEFAULT 'manual_only'"),
-        ("project", "digest_enabled", "digest_enabled BOOLEAN DEFAULT 1"),
-        ("project", "knowledge_status", "knowledge_status TEXT DEFAULT 'idle'"),
-        ("project", "last_refreshed_at", "last_refreshed_at DATETIME"),
-        ("project", "next_refresh_due_at", "next_refresh_due_at DATETIME"),
-        ("workspacedigest", "owner_id", "owner_id INTEGER"),
-        ("workspacedigest", "delivery_status", "delivery_status TEXT DEFAULT 'pending'"),
-        ("workspacedigest", "delivery_target", "delivery_target TEXT DEFAULT ''"),
-        ("workspacedigest", "delivery_message", "delivery_message TEXT DEFAULT ''"),
-        ("workspacedigest", "delivered_at", "delivered_at DATETIME"),
-        ("sourcepaper", "content_fingerprint", "content_fingerprint TEXT DEFAULT ''"),
-        ("sourcepaper", "ingested_at", "ingested_at DATETIME"),
-        ("sourcepaper", "source_updated_at", "source_updated_at DATETIME"),
-        ("evidencecard", "source_title", "source_title TEXT DEFAULT ''"),
-        ("evidencecard", "source_excerpt", "source_excerpt TEXT DEFAULT ''"),
-        ("evidencecard", "source_url", "source_url TEXT DEFAULT ''"),
-        ("evidencecard", "source_chunk_id", "source_chunk_id TEXT DEFAULT ''"),
-        ("evidencecard", "source_section", "source_section TEXT DEFAULT ''"),
-        ("evidencecard", "snippet_start", "snippet_start INTEGER"),
-        ("evidencecard", "snippet_end", "snippet_end INTEGER"),
-        ("evidencecard", "confidence_score", "confidence_score REAL DEFAULT 0"),
-        ("evidencecard", "provider_name", "provider_name TEXT DEFAULT 'mock'"),
-        ("evidencecard", "review_status", "review_status TEXT DEFAULT 'suggested'"),
-        ("evidencecard", "evidence_fingerprint", "evidence_fingerprint TEXT DEFAULT ''"),
-        ("evidencecard", "is_stale", "is_stale BOOLEAN DEFAULT 0"),
-        ("evidencecard", "is_pinned", "is_pinned BOOLEAN DEFAULT 0"),
-        ("evidencecard", "pinned_at", "pinned_at DATETIME"),
-        ("evidencecard", "user_note", "user_note TEXT DEFAULT ''"),
-        ("evidencecard", "edited_at", "edited_at DATETIME"),
-        ("evidencecard", "edited_by", "edited_by TEXT DEFAULT ''"),
-        ("evidencecard", "edit_snapshot_json", "edit_snapshot_json TEXT DEFAULT '{}'"),
-        ("evidencecard", "extraction_run_id", "extraction_run_id INTEGER"),
-        ("evidencecard", "extracted_at", "extracted_at DATETIME"),
-        ("topicnoteversion", "version_kind", "version_kind TEXT DEFAULT 'snapshot'"),
-        ("topicnoteversion", "source_suggestion_ids_json", "source_suggestion_ids_json TEXT DEFAULT '[]'"),
-        ("noteupdatesuggestion", "diff_payload_json", "diff_payload_json TEXT DEFAULT '{}'"),
-        ("noteupdatesuggestion", "applied_at", "applied_at DATETIME"),
-        ("noteupdatesuggestion", "applied_by", "applied_by TEXT DEFAULT ''"),
-    ]
-    for table_name, column_name, ddl in column_migrations:
-        _add_column_if_missing(table_name, column_name, ddl)
-
-    _backfill_null("evidencecard", "extracted_at", "CURRENT_TIMESTAMP")
-    _backfill_null("sourcepaper", "ingested_at", "CURRENT_TIMESTAMP")
-    _backfill_null("sourcepaper", "source_updated_at", "CURRENT_TIMESTAMP")
-    _add_column_if_missing("topicnote", "sections_json", "sections_json TEXT DEFAULT '[]'")
-    _add_column_if_missing("topicnote", "metadata_json", "metadata_json TEXT DEFAULT '{}'")
-    _add_column_if_missing("projectpaper", "extraction_state", "extraction_state TEXT DEFAULT 'not_started'")
-    _add_column_if_missing("projectpaper", "extracted_fingerprint", "extracted_fingerprint TEXT DEFAULT ''")
-    _add_column_if_missing("projectpaper", "last_extracted_at", "last_extracted_at DATETIME")
-    _add_column_if_missing("updaterun", "run_type", "run_type TEXT DEFAULT 'generic'")
-    _add_column_if_missing("updaterun", "provider", "provider TEXT DEFAULT ''")
-    _add_column_if_missing("updaterun", "error_message", "error_message TEXT DEFAULT ''")
-    _add_column_if_missing("updaterun", "current_step", "current_step TEXT DEFAULT ''")
-    _add_column_if_missing("updaterun", "progress_message", "progress_message TEXT DEFAULT ''")
-    _add_column_if_missing("updaterun", "total_steps", "total_steps INTEGER DEFAULT 0")
-    _add_column_if_missing("updaterun", "completed_steps", "completed_steps INTEGER DEFAULT 0")
-    _add_column_if_missing("updaterun", "papers_found", "papers_found INTEGER DEFAULT 0")
-    _add_column_if_missing("updaterun", "papers_added", "papers_added INTEGER DEFAULT 0")
-    _add_column_if_missing("updaterun", "evidence_created", "evidence_created INTEGER DEFAULT 0")
-    _add_column_if_missing("updaterun", "affected_sections_count", "affected_sections_count INTEGER DEFAULT 0")
-    _add_column_if_missing("updaterun", "started_at", "started_at DATETIME")
-    _add_column_if_missing("updaterun", "finished_at", "finished_at DATETIME")
-    _backfill_null("updaterun", "started_at", "created_at")
+    bootstrap_legacy_database_for_alembic(engine=engine, database_url=settings.database_url)
+    run_alembic_migrations(database_url=settings.database_url)
 
 
 def get_session():
