@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlmodel import Session
 
 from .db import create_db_and_tables, engine
+from .migration_bootstrap import get_alembic_revision
 from .routers import auth, evidence, notes, papers, projects, workspace
 from .services.scheduler import start_scheduler, stop_scheduler
 from .settings import settings
@@ -54,7 +55,13 @@ app.add_middleware(
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "environment": settings.app_env, "database_url": settings.database_url}
+    return {
+        "status": "ok",
+        "environment": settings.app_env,
+        "database_url": settings.database_url,
+        "database_migration_mode": settings.database_migration_mode,
+        "alembic_revision": get_alembic_revision(engine=engine),
+    }
 
 
 @app.get("/health/live")
@@ -66,7 +73,12 @@ def health_live():
 def health_ready():
     with Session(engine) as session:
         session.exec(text("SELECT 1"))
-    return {"status": "ready", "database": "ok"}
+    return {
+        "status": "ready",
+        "database": "ok",
+        "database_migration_mode": settings.database_migration_mode,
+        "alembic_revision": get_alembic_revision(engine=engine),
+    }
 
 
 app.include_router(auth.router)

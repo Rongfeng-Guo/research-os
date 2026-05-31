@@ -227,6 +227,8 @@ alembic upgrade head
 alembic revision --autogenerate -m "describe change"
 ```
 
+For the full migration workflow and runtime visibility model, see [MIGRATIONS.md](MIGRATIONS.md).
+
 Project backup support includes:
 
 - full project snapshot export
