@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
@@ -39,10 +40,13 @@ def client(tmp_path: Path):
             yield session
 
     TOKEN_STORE.clear()
-    original_startup = app.router.on_startup[:]
-    original_shutdown = app.router.on_shutdown[:]
-    app.router.on_startup = [handler for handler in app.router.on_startup if getattr(handler, "__name__", "") != "on_startup"]
-    app.router.on_shutdown = [handler for handler in app.router.on_shutdown if getattr(handler, "__name__", "") != "on_shutdown"]
+    original_lifespan = app.router.lifespan_context
+
+    @asynccontextmanager
+    async def test_lifespan(_: object):
+        yield
+
+    app.router.lifespan_context = test_lifespan
     app.dependency_overrides[get_session] = override_get_session
     try:
         with TestClient(app) as test_client:
@@ -50,8 +54,7 @@ def client(tmp_path: Path):
             yield test_client
     finally:
         stop_scheduler()
-        app.router.on_startup = original_startup
-        app.router.on_shutdown = original_shutdown
+        app.router.lifespan_context = original_lifespan
         app.dependency_overrides.clear()
         TOKEN_STORE.clear()
 

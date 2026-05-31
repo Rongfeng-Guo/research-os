@@ -48,6 +48,30 @@ def test_project_refresh_creates_new_sources_suggestions_and_update_run(client, 
     assert payload["note_update_suggestions"][0]["diff"]["blocks"]
 
 
+def test_project_refresh_returns_500_and_marks_run_failed_when_workflow_errors(client, auth_headers, monkeypatch):
+    project = client.post(
+        "/projects",
+        json={"title": "Broken Refresh", "topic": "failing topic", "description": ""},
+        headers=auth_headers,
+    ).json()
+
+    def broken_search(*args, **kwargs):
+        raise RuntimeError("paper provider timeout")
+
+    monkeypatch.setattr("app.services.refresh_workflow.search_papers", broken_search)
+
+    refresh_response = client.post(f"/projects/{project['id']}/refresh", headers=auth_headers)
+    assert refresh_response.status_code == 500
+    assert refresh_response.json()["detail"] == "Project refresh failed"
+
+    detail = client.get(f"/projects/{project['id']}", headers=auth_headers)
+    assert detail.status_code == 200
+    refresh_runs = [run for run in detail.json()["update_runs"] if run["run_type"] == "project_refresh"]
+    assert len(refresh_runs) == 1
+    assert refresh_runs[0]["status"] == "failed"
+    assert refresh_runs[0]["error_message"] == "paper provider timeout"
+
+
 def test_apply_accepted_suggestions_creates_note_version(client, auth_headers):
     project = client.post(
         "/projects",

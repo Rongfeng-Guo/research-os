@@ -1,5 +1,6 @@
 import logging
 import sys
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,8 +13,6 @@ from .services.scheduler import start_scheduler, stop_scheduler
 from .settings import settings
 from .seed import seed_default_user
 
-app = FastAPI(title="Research OS MVP", version="0.1.0")
-
 settings.validate()
 
 logging.basicConfig(
@@ -22,6 +21,28 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
+
+def run_startup_tasks() -> None:
+    create_db_and_tables()
+    seed_default_user()
+    start_scheduler()
+
+
+def run_shutdown_tasks() -> None:
+    stop_scheduler()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    run_startup_tasks()
+    try:
+        yield
+    finally:
+        run_shutdown_tasks()
+
+
+app = FastAPI(title="Research OS MVP", version="0.1.0", lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_allow_origins,
@@ -29,18 +50,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def on_startup() -> None:
-    create_db_and_tables()
-    seed_default_user()
-    start_scheduler()
-
-
-@app.on_event("shutdown")
-def on_shutdown() -> None:
-    stop_scheduler()
 
 
 @app.get("/health")

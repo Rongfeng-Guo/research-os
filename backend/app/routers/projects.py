@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime
 from typing import List
 
@@ -33,6 +34,7 @@ from ..services.update_suggestions import suggestion_to_read
 from ..time_utils import utc_now
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+logger = logging.getLogger(__name__)
 
 
 def _parse_source_metadata(raw: str) -> dict:
@@ -428,7 +430,8 @@ def refresh_project(
     try:
         run_project_refresh_job(session, project=project, run=run)
     except Exception:
-        pass
+        logger.exception("Synchronous project refresh failed project_id=%s run_id=%s", project_id, run.id)
+        raise HTTPException(status_code=500, detail="Project refresh failed")
 
     session.refresh(project)
     return get_project_detail(project_id=project_id, current_user=current_user, session=session)
