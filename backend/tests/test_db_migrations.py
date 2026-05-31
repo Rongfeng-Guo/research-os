@@ -47,3 +47,15 @@ def test_lightweight_migrations_emit_deprecation_warning(tmp_path: Path):
         migration_bootstrap.run_lightweight_migrations(engine=engine)
 
     assert any(item.category is DeprecationWarning for item in caught)
+
+
+def test_lightweight_migrations_log_runtime_warning(tmp_path: Path, caplog):
+    db_path = tmp_path / "lightweight-log.db"
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        migration_bootstrap.run_lightweight_migrations(engine=engine)
+
+    assert "DATABASE_MIGRATION_MODE=lightweight is deprecated" in caplog.text

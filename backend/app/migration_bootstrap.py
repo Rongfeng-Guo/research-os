@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
+import logging
 
 from sqlalchemy import inspect, text
 from sqlmodel import SQLModel
 
-from .settings import settings
+logger = logging.getLogger(__name__)
 
 
 def run_alembic_migrations(*, database_url: str) -> None:
@@ -76,6 +77,9 @@ def backfill_null(*, engine, table_name: str, column_name: str, replacement_sql:
 
 
 def run_lightweight_migrations(*, engine) -> None:
+    logger.warning(
+        "DATABASE_MIGRATION_MODE=lightweight is deprecated and should be treated as temporary emergency fallback only."
+    )
     warnings.warn(
         "DATABASE_MIGRATION_MODE=lightweight is deprecated and kept only for emergency legacy fallback. Prefer hybrid or alembic.",
         DeprecationWarning,
