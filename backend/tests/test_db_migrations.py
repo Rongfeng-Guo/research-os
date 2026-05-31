@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 from sqlmodel import create_engine
 
 from app import db
 from app import migration_bootstrap
+from app.settings import Settings
 
 
 def test_bootstrap_legacy_database_for_alembic_stamps_initial_revision(monkeypatch, tmp_path: Path):
@@ -59,3 +61,48 @@ def test_lightweight_migrations_log_runtime_warning(tmp_path: Path, caplog):
         migration_bootstrap.run_lightweight_migrations(engine=engine)
 
     assert "DATABASE_MIGRATION_MODE=lightweight is deprecated" in caplog.text
+
+
+def test_create_db_and_tables_uses_lightweight_path(monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setattr(db, "settings", SimpleNamespace(database_migration_mode="lightweight", database_url="sqlite:///unused.db"))
+    monkeypatch.setattr(db, "run_lightweight_migrations", lambda **kwargs: calls.append("lightweight"))
+    monkeypatch.setattr(db, "bootstrap_legacy_database_for_alembic", lambda **kwargs: calls.append("bootstrap"))
+    monkeypatch.setattr(db, "run_alembic_migrations", lambda **kwargs: calls.append("alembic"))
+
+    db.create_db_and_tables()
+
+    assert calls == ["lightweight"]
+
+
+def test_create_db_and_tables_uses_hybrid_path(monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setattr(db, "settings", SimpleNamespace(database_migration_mode="hybrid", database_url="sqlite:///hybrid.db"))
+    monkeypatch.setattr(db, "run_lightweight_migrations", lambda **kwargs: calls.append("lightweight"))
+    monkeypatch.setattr(db, "bootstrap_legacy_database_for_alembic", lambda **kwargs: calls.append("bootstrap"))
+    monkeypatch.setattr(db, "run_alembic_migrations", lambda **kwargs: calls.append("alembic"))
+
+    db.create_db_and_tables()
+
+    assert calls == ["bootstrap", "alembic"]
+
+
+def test_create_db_and_tables_uses_alembic_only_path(monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setattr(db, "settings", SimpleNamespace(database_migration_mode="alembic", database_url="sqlite:///alembic.db"))
+    monkeypatch.setattr(db, "run_lightweight_migrations", lambda **kwargs: calls.append("lightweight"))
+    monkeypatch.setattr(db, "bootstrap_legacy_database_for_alembic", lambda **kwargs: calls.append("bootstrap"))
+    monkeypatch.setattr(db, "run_alembic_migrations", lambda **kwargs: calls.append("alembic"))
+
+    db.create_db_and_tables()
+
+    assert calls == ["bootstrap", "alembic"]
+
+
+def test_settings_require_confirmation_for_lightweight_mode():
+    settings = Settings(database_migration_mode="lightweight", lightweight_migration_confirm=False)
+
+    import pytest
+
+    with pytest.raises(ValueError, match="LIGHTWEIGHT_MIGRATION_CONFIRM=true is required"):
+        settings.validate()

@@ -274,6 +274,7 @@ Verified locally:
 ## Troubleshooting
 
 - `DATABASE_MIGRATION_MODE=lightweight` is deprecated and should be used only as a temporary emergency fallback while migrating an older local database into the Alembic-managed path.
+- `DATABASE_MIGRATION_MODE=lightweight` now also requires `LIGHTWEIGHT_MIGRATION_CONFIRM=true`, so it cannot be enabled accidentally.
 - If startup still requires `lightweight`, switch back to `hybrid` as soon as the database is stamped and upgraded through the current Alembic revisions.
 
 ## Known limitations
