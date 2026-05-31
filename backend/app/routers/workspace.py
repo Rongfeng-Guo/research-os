@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlmodel import Session, select
 
 from ..auth import get_current_user
@@ -7,6 +8,7 @@ from ..models import WorkspaceDigest, User
 from ..schemas import DashboardSummary, DigestDeliveryRead, DigestDeliveryRequest, WorkspaceDigestRead
 from ..services.dashboard_service import build_workspace_summary
 from ..services.digest_delivery import deliver_digest
+from ..services.download_exports import build_digest_bundle_export, build_digest_markdown_export
 from ..services.digest_service import digest_to_read, generate_workspace_digest
 
 router = APIRouter(prefix="/workspace", tags=["workspace"])
@@ -39,6 +41,24 @@ def list_digests(
         select(WorkspaceDigest).where(WorkspaceDigest.owner_id == current_user.id).order_by(WorkspaceDigest.generated_at.desc())
     ).all()
     return [WorkspaceDigestRead(**digest_to_read(digest)) for digest in digests]
+
+
+@router.get("/digests/{digest_id}/download")
+def download_workspace_digest(
+    digest_id: int,
+    format: str = Query(default="markdown", pattern="^(markdown|bundle)$"),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    digest = session.get(WorkspaceDigest, digest_id)
+    if not digest or digest.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Digest not found")
+    if format == "bundle":
+        filename, content, content_type = build_digest_bundle_export(digest)
+    else:
+        filename, content, content_type = build_digest_markdown_export(digest)
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return Response(content=content, media_type=content_type, headers=headers)
 
 
 @router.post("/digests/{digest_id}/deliver", response_model=DigestDeliveryRead)

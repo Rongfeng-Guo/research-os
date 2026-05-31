@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from sqlalchemy import inspect
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -8,8 +10,25 @@ engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_threa
 
 
 def create_db_and_tables() -> None:
-    SQLModel.metadata.create_all(engine)
-    run_lightweight_migrations()
+    if settings.database_migration_mode == "lightweight":
+        SQLModel.metadata.create_all(engine)
+        run_lightweight_migrations()
+        return
+    run_alembic_migrations()
+    if settings.database_migration_mode == "hybrid":
+        run_lightweight_migrations()
+
+
+def run_alembic_migrations() -> None:
+    from alembic import command
+    from alembic.config import Config
+
+    backend_dir = Path(__file__).resolve().parents[1]
+    alembic_ini = backend_dir / "alembic.ini"
+    config = Config(str(alembic_ini))
+    config.set_main_option("script_location", str(backend_dir / "migrations"))
+    config.set_main_option("sqlalchemy.url", settings.database_url)
+    command.upgrade(config, "head")
 
 
 def _add_column_if_missing(table_name: str, column_name: str, ddl: str) -> None:

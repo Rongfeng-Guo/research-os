@@ -85,3 +85,26 @@ export async function apiFetchOrNull<T>(path: string, options: RequestInit = {})
     throw error;
   }
 }
+
+export async function apiFetchBlob(path: string, options: RequestInit = {}): Promise<{ blob: Blob; filename: string | null; contentType: string | null }> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string> | undefined),
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: "no-store" });
+  if (!res.ok) {
+    const text = await res.text();
+    throw parseApiError(res.status, text);
+  }
+
+  const blob = await res.blob();
+  const contentDisposition = res.headers.get("content-disposition");
+  const filenameMatch = contentDisposition?.match(/filename=\"?([^"]+)\"?/i);
+  return {
+    blob,
+    filename: filenameMatch?.[1] || null,
+    contentType: res.headers.get("content-type"),
+  };
+}

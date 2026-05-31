@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { apiFetch, getApiErrorMessage, isApiError } from "@/lib/api";
+import { apiFetch, apiFetchBlob, getApiErrorMessage, isApiError } from "@/lib/api";
 import { useToast } from "@/components/ToastProvider";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
@@ -50,7 +50,7 @@ export default function DigestsPage() {
   const [status, setStatus] = useState("Loading weekly digests...");
   const [needsLogin, setNeedsLogin] = useState(false);
   const [digestUnavailable, setDigestUnavailable] = useState(false);
-  const [busyAction, setBusyAction] = useState<"generate" | "export" | "obsidian" | null>(null);
+  const [busyAction, setBusyAction] = useState<"generate" | "export" | "bundle" | "obsidian" | "email" | "webhook" | null>(null);
 
   async function loadDigests() {
     const result = await apiFetch<Digest[]>("/workspace/digests");
@@ -121,6 +121,27 @@ export default function DigestsPage() {
     }
   }
 
+  async function downloadDigestBundle() {
+    if (!activeDigest) return;
+    setBusyAction("bundle");
+    try {
+      const result = await apiFetchBlob(`/workspace/digests/${activeDigest.id}/download?format=bundle`);
+      const url = URL.createObjectURL(result.blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = result.filename || `weekly-digest-${activeDigest.id}.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+      showToast({ tone: "success", title: "Digest bundle downloaded", message: "A zip export was downloaded to your machine." });
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Failed to download digest bundle");
+      setStatus(message);
+      showToast({ tone: "error", title: "Could not download digest bundle", message });
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function exportObsidianMarkdown() {
     if (!activeDigest) return;
     setBusyAction("obsidian");
@@ -143,6 +164,48 @@ export default function DigestsPage() {
       const message = getApiErrorMessage(error, "Failed to deliver digest");
       setStatus(message);
       showToast({ tone: "error", title: "Could not write Obsidian export", message });
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function sendDigestEmail() {
+    if (!activeDigest) return;
+    setBusyAction("email");
+    setStatus("Sending digest email...");
+    try {
+      const result = await apiFetch<DigestDeliveryResult>(`/workspace/digests/${activeDigest.id}/deliver`, {
+        method: "POST",
+        body: JSON.stringify({ target: "email" }),
+      });
+      await loadDigests();
+      setStatus(result.message || "Digest email sent.");
+      showToast({ tone: "success", title: "Digest emailed", message: result.message || "Digest delivery email was sent." });
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Failed to send digest email");
+      setStatus(message);
+      showToast({ tone: "error", title: "Could not send digest email", message });
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function sendDigestWebhook() {
+    if (!activeDigest) return;
+    setBusyAction("webhook");
+    setStatus("Sending digest webhook...");
+    try {
+      const result = await apiFetch<DigestDeliveryResult>(`/workspace/digests/${activeDigest.id}/deliver`, {
+        method: "POST",
+        body: JSON.stringify({ target: "webhook" }),
+      });
+      await loadDigests();
+      setStatus(result.message || "Digest webhook sent.");
+      showToast({ tone: "success", title: "Webhook delivered", message: result.message || "Digest payload was posted to the webhook target." });
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Failed to send digest webhook");
+      setStatus(message);
+      showToast({ tone: "error", title: "Could not send digest webhook", message });
     } finally {
       setBusyAction(null);
     }
@@ -200,9 +263,21 @@ export default function DigestsPage() {
               {busyAction === "export" ? <LoadingSpinner /> : null}
               {busyAction === "export" ? "Exporting..." : "Export markdown"}
             </button>
+            <button className="btn-secondary" onClick={() => void downloadDigestBundle()} type="button" disabled={!activeDigest || busyAction === "bundle"}>
+              {busyAction === "bundle" ? <LoadingSpinner /> : null}
+              {busyAction === "bundle" ? "Bundling..." : "Download bundle"}
+            </button>
             <button className="btn-secondary" onClick={() => void exportObsidianMarkdown()} type="button" disabled={!activeDigest || busyAction === "obsidian"}>
               {busyAction === "obsidian" ? <LoadingSpinner /> : null}
               {busyAction === "obsidian" ? "Preparing..." : "Export for Obsidian"}
+            </button>
+            <button className="btn-secondary" onClick={() => void sendDigestEmail()} type="button" disabled={!activeDigest || busyAction === "email"}>
+              {busyAction === "email" ? <LoadingSpinner /> : null}
+              {busyAction === "email" ? "Sending..." : "Send email"}
+            </button>
+            <button className="btn-secondary" onClick={() => void sendDigestWebhook()} type="button" disabled={!activeDigest || busyAction === "webhook"}>
+              {busyAction === "webhook" ? <LoadingSpinner /> : null}
+              {busyAction === "webhook" ? "Posting..." : "Send webhook"}
             </button>
           </div>
         </div>

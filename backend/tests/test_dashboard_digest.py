@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+import zipfile
 from pathlib import Path
 
 from app.models import Project
@@ -254,3 +256,79 @@ def test_digest_delivery_can_write_obsidian_file(client, auth_headers, monkeypat
     assert written_path.exists()
     assert written_path.read_text(encoding="utf-8").startswith("---\nsource: research-os")
     assert payload["payload"]["bytes_written"] > 0
+
+
+def test_digest_download_bundle_contains_markdown_and_json(client, auth_headers):
+    project = client.post(
+        "/projects",
+        json={"title": "Bundle Project", "topic": "digest bundle", "description": ""},
+        headers=auth_headers,
+    ).json()
+    client.patch(
+        f"/projects/{project['id']}/preferences",
+        json={"auto_refresh_enabled": True, "refresh_cadence": "weekly", "digest_enabled": True},
+        headers=auth_headers,
+    )
+    client.post(
+        f"/papers/projects/{project['id']}/upload-text",
+        json={"title": "Bundle source", "text": "Bundle digest content.", "content_type": "text"},
+        headers=auth_headers,
+    )
+    digest = client.post("/workspace/digests/generate?days=7", headers=auth_headers)
+    digest_id = digest.json()["id"]
+
+    response = client.get(f"/workspace/digests/{digest_id}/download?format=bundle", headers=auth_headers)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    archive = zipfile.ZipFile(io.BytesIO(response.content))
+    names = set(archive.namelist())
+    assert any(name.endswith("/digest.md") for name in names)
+    assert any(name.endswith("/summary.json") for name in names)
+    assert any(name.endswith("/metadata.json") for name in names)
+
+
+def test_digest_delivery_supports_email_and_webhook(client, auth_headers, monkeypatch):
+    project = client.post(
+        "/projects",
+        json={"title": "Delivery Targets", "topic": "delivery targets", "description": ""},
+        headers=auth_headers,
+    ).json()
+    client.patch(
+        f"/projects/{project['id']}/preferences",
+        json={"auto_refresh_enabled": True, "refresh_cadence": "weekly", "digest_enabled": True},
+        headers=auth_headers,
+    )
+    client.post(
+        f"/papers/projects/{project['id']}/upload-text",
+        json={"title": "Delivery source", "text": "Delivery target content.", "content_type": "text"},
+        headers=auth_headers,
+    )
+    digest = client.post("/workspace/digests/generate?days=7", headers=auth_headers)
+    digest_id = digest.json()["id"]
+
+    monkeypatch.setattr(
+        "app.services.digest_delivery.deliver_digest_via_email",
+        lambda digest: {"status": "sent", "message": "Email target invoked.", "recipient_count": 1},
+    )
+    monkeypatch.setattr(
+        "app.services.digest_delivery.deliver_digest_via_webhook",
+        lambda digest: {"status": "sent", "message": "Webhook target invoked.", "response_status": 200},
+    )
+
+    email_response = client.post(
+        f"/workspace/digests/{digest_id}/deliver",
+        json={"target": "email"},
+        headers=auth_headers,
+    )
+    assert email_response.status_code == 200
+    assert email_response.json()["status"] == "sent"
+    assert email_response.json()["target"] == "email"
+
+    webhook_response = client.post(
+        f"/workspace/digests/{digest_id}/deliver",
+        json={"target": "webhook"},
+        headers=auth_headers,
+    )
+    assert webhook_response.status_code == 200
+    assert webhook_response.json()["status"] == "sent"
+    assert webhook_response.json()["target"] == "webhook"

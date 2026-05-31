@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from io import BytesIO
+import io
 from pathlib import Path
+import zipfile
 
 from fastapi.testclient import TestClient
 from pypdf import PdfWriter
@@ -269,3 +271,28 @@ def test_export_project_note_to_obsidian_file(client: TestClient, auth_headers: 
     written_content = written_path.read_text(encoding="utf-8")
     assert "kind: topic_note" in written_content
     assert "note_title: Exported Note Project Research Note" in written_content
+
+
+def test_download_project_note_bundle(client: TestClient, auth_headers: dict[str, str]):
+    project = client.post(
+        "/projects",
+        json={"title": "Bundle Note Project", "topic": "note bundle", "description": ""},
+        headers=auth_headers,
+    ).json()
+
+    client.post(
+        f"/papers/projects/{project['id']}/upload-text",
+        json={"title": "Source", "text": "Bundle note content.", "content_type": "text"},
+        headers=auth_headers,
+    )
+    client.post(f"/papers/projects/{project['id']}/extract", headers=auth_headers)
+    client.post(f"/notes/projects/{project['id']}/generate", headers=auth_headers)
+
+    response = client.get(f"/notes/projects/{project['id']}/download?format=bundle", headers=auth_headers)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    archive = zipfile.ZipFile(io.BytesIO(response.content))
+    names = set(archive.namelist())
+    assert any(name.endswith("/note.md") for name in names)
+    assert any(name.endswith("/note.json") for name in names)
+    assert any(name.endswith("/metadata.json") for name in names)

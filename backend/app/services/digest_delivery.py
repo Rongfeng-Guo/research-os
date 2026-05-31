@@ -7,10 +7,11 @@ from sqlmodel import Session
 from ..models import WorkspaceDigest
 from ..settings import settings
 from ..time_utils import utc_now
+from .digest_delivery_integrations import deliver_digest_via_email, deliver_digest_via_webhook
 from .integrations import FileObsidianExportService, PlaceholderObsidianExportService
 
 
-SUPPORTED_DIGEST_DELIVERY_TARGETS = {"download_markdown", "obsidian_placeholder", "obsidian_file"}
+SUPPORTED_DIGEST_DELIVERY_TARGETS = {"download_markdown", "obsidian_placeholder", "obsidian_file", "email", "webhook"}
 
 
 def get_obsidian_export_service(target: str):
@@ -39,6 +40,20 @@ def deliver_digest(session: Session, *, digest: WorkspaceDigest, target: str) ->
         digest.delivery_status = "prepared"
         digest.delivery_target = requested_target
         digest.delivery_message = "Digest markdown is ready for download."
+        digest.delivered_at = utc_now()
+    elif requested_target == "email":
+        result = deliver_digest_via_email(digest)
+        payload = result
+        digest.delivery_status = result.get("status", "sent")
+        digest.delivery_target = requested_target
+        digest.delivery_message = result.get("message", "Digest email was sent.")
+        digest.delivered_at = utc_now()
+    elif requested_target == "webhook":
+        result = deliver_digest_via_webhook(digest)
+        payload = result
+        digest.delivery_status = result.get("status", "sent")
+        digest.delivery_target = requested_target
+        digest.delivery_message = result.get("message", "Digest webhook delivery completed.")
         digest.delivered_at = utc_now()
     else:
         obsidian = get_obsidian_export_service(requested_target)

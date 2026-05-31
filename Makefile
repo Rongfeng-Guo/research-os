@@ -1,6 +1,6 @@
 PYTHON_INDEX_URL ?= https://pypi.org/simple
 
-.PHONY: backend-install backend-run backend-test frontend-install frontend-run frontend-build docker-up docker-up-prod docker-down
+.PHONY: backend-install backend-run backend-test backend-migrate backend-migration-create frontend-install frontend-run frontend-build docker-up docker-up-prod docker-down
 
 backend-install:
 	cd backend && python -m pip install --index-url $(PYTHON_INDEX_URL) -r requirements.txt
@@ -10,6 +10,12 @@ backend-run:
 
 backend-test:
 	cd backend && pytest -q
+
+backend-migrate:
+	cd backend && alembic upgrade head
+
+backend-migration-create:
+	cd backend && alembic revision --autogenerate -m "$(MESSAGE)"
 
 frontend-install:
 	cd frontend && npm install

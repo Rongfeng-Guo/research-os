@@ -2,6 +2,7 @@ import json
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlmodel import Session, select
 
 from ..auth import get_current_user
@@ -20,6 +21,7 @@ from ..schemas import (
     VersionComparisonRead,
 )
 from ..services.diffing import build_diff_payload
+from ..services.download_exports import build_note_bundle_export, build_note_markdown_export
 from ..services.note_delivery import export_project_note
 from ..services.note_generation import build_note
 from ..services.note_sections import get_section, merge_generated_sections, normalize_note_sections, render_note_markdown, sections_to_json
@@ -268,6 +270,22 @@ def export_note(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return NoteExportRead(**result)
+
+
+@router.get("/projects/{project_id}/download")
+def download_note(
+    project_id: int,
+    format: str = Query(default="markdown", pattern="^(markdown|bundle)$"),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    _, note = _load_project_note(session, project_id, current_user)
+    if format == "bundle":
+        filename, content, content_type = build_note_bundle_export(note)
+    else:
+        filename, content, content_type = build_note_markdown_export(note)
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return Response(content=content, media_type=content_type, headers=headers)
 
 
 @router.patch("/projects/{project_id}/sections/{section_slug}", response_model=TopicNoteRead)

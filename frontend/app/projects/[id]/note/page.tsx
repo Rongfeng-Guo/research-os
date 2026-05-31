@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import NotePanel, { NoteSection } from "@/components/NotePanel";
-import { apiFetch, apiFetchOrNull, getApiErrorMessage, isApiError } from "@/lib/api";
+import { apiFetch, apiFetchBlob, apiFetchOrNull, getApiErrorMessage, isApiError } from "@/lib/api";
 import { setLastProjectId } from "@/lib/local-state";
 import { useToast } from "@/components/ToastProvider";
 
@@ -38,6 +38,7 @@ export default function NotePage({ params }: { params: { id: string } }) {
   const [status, setStatus] = useState("Loading note...");
   const [needsGeneration, setNeedsGeneration] = useState(false);
   const [exportingObsidian, setExportingObsidian] = useState(false);
+  const [downloadingBundle, setDownloadingBundle] = useState(false);
 
   async function loadNote() {
     const data = await apiFetchOrNull<TopicNote>(`/notes/projects/${projectId}`);
@@ -120,6 +121,28 @@ export default function NotePage({ params }: { params: { id: string } }) {
     }
   }
 
+  async function downloadNoteBundle() {
+    setDownloadingBundle(true);
+    setStatus("Preparing note bundle...");
+    try {
+      const result = await apiFetchBlob(`/notes/projects/${projectId}/download?format=bundle`);
+      const url = URL.createObjectURL(result.blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = result.filename || `project-note-${projectId}.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setStatus("Note bundle downloaded.");
+      showToast({ tone: "success", title: "Note bundle downloaded", message: "A zip export of the topic note was downloaded." });
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Failed to download note bundle");
+      setStatus(message);
+      showToast({ tone: "error", title: "Could not download note bundle", message });
+    } finally {
+      setDownloadingBundle(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <section className="card">
@@ -132,6 +155,9 @@ export default function NotePage({ params }: { params: { id: string } }) {
             </p>
           </div>
           <div className="flex gap-2">
+            <button className="btn-secondary" disabled={!note || downloadingBundle} onClick={() => void downloadNoteBundle()} type="button">
+              {downloadingBundle ? "Bundling..." : "Download bundle"}
+            </button>
             <button className="btn-secondary" disabled={!note || exportingObsidian} onClick={() => void exportToObsidian()} type="button">
               {exportingObsidian ? "Writing..." : "Export to Obsidian"}
             </button>

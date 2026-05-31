@@ -384,6 +384,11 @@ class NoteExportRead(ReadModel):
     payload: dict = {}
 
 
+class DownloadFormatResponse(ReadModel):
+    filename: str
+    content_type: str
+
+
 class ProjectDetail(ReadModel):
     project: ProjectRead
     papers: List[ProjectPaperRead]

@@ -118,6 +118,7 @@ npm run dev
 make backend-install
 make backend-run
 make backend-test
+make backend-migrate
 make frontend-install
 make frontend-run
 make frontend-build
@@ -189,6 +190,38 @@ Then use `POST /workspace/digests/{id}/deliver` with `{"target":"obsidian_file"}
 
 Project notes can use the same direct export flow through `POST /notes/projects/{id}/export` with `{"target":"obsidian_file"}`.
 
+Download exports are also available:
+
+- `GET /workspace/digests/{id}/download?format=markdown`
+- `GET /workspace/digests/{id}/download?format=bundle`
+- `GET /notes/projects/{id}/download?format=markdown`
+- `GET /notes/projects/{id}/download?format=bundle`
+
+Digest delivery can also target server-side integrations:
+
+- `POST /workspace/digests/{id}/deliver` with `{"target":"email"}`
+- `POST /workspace/digests/{id}/deliver` with `{"target":"webhook"}`
+
+Configuration:
+
+```powershell
+DATABASE_MIGRATION_MODE=hybrid
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_FROM_EMAIL=ops@example.com
+SMTP_TO_EMAILS=team@example.com
+SMTP_USE_TLS=true
+DIGEST_WEBHOOK_URL=https://example.com/hooks/research-os
+```
+
+Alembic is now included for schema management:
+
+```powershell
+cd backend
+alembic upgrade head
+alembic revision --autogenerate -m "describe change"
+```
+
 Project backup support includes:
 
 - full project snapshot export
@@ -238,9 +271,9 @@ Verified locally:
 - PDF parsing currently supports text-based PDFs only
 - OCR for scanned PDFs is not implemented yet
 - Refresh and digest scheduling run in-process on a single backend instance
-- Digest delivery does not yet include direct email, webhook, or external vault sync
+- Digest delivery does not yet include provider-managed inboxes, retries, or external vault sync beyond file export
 - Direct Obsidian export writes to the backend host filesystem and is intended for trusted single-user or self-hosted setups
-- The schema migration approach is lightweight and does not use Alembic
+- Email and webhook delivery depend on trusted server-side credentials and endpoints
 - SQLite is intended for lightweight deployment, not high-concurrency traffic
 
 ## Roadmap
@@ -250,7 +283,6 @@ Planned next steps:
 - OCR support for scanned PDFs
 - Stronger outbound digest delivery such as email or webhook targets
 - Better multi-user and multi-instance deployment support
-- More robust database migration tooling
 
 ## Contributing
 
