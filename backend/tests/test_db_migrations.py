@@ -72,6 +72,21 @@ def test_legacy_script_emits_warning_and_runs(monkeypatch, caplog):
     assert "backfill" in calls
 
 
+def test_legacy_script_dry_run_skips_database_writes(monkeypatch, capsys):
+    calls: list[str] = []
+    monkeypatch.setattr("sys.argv", ["legacy_lightweight_migrate.py", "--confirm", "--dry-run"])
+    monkeypatch.setattr(legacy_lightweight_migrate, "add_column_if_missing", lambda **kwargs: calls.append("add"))
+    monkeypatch.setattr(legacy_lightweight_migrate, "backfill_null", lambda **kwargs: calls.append("backfill"))
+    monkeypatch.setattr(legacy_lightweight_migrate.SQLModel.metadata, "create_all", lambda engine: calls.append("create_all"))
+
+    code = legacy_lightweight_migrate.main()
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert "Dry run complete." in captured.out
+    assert calls == []
+
+
 def test_create_db_and_tables_uses_lightweight_path(monkeypatch):
     import pytest
 

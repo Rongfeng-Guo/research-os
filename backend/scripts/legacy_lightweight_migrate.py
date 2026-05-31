@@ -4,6 +4,7 @@ import argparse
 import sys
 import warnings
 import logging
+from dataclasses import dataclass
 
 from app.db import engine
 from sqlmodel import SQLModel
@@ -13,7 +14,15 @@ from app.migration_bootstrap import add_column_if_missing, backfill_null
 logger = logging.getLogger(__name__)
 
 
-def run_legacy_lightweight_migrations() -> None:
+@dataclass
+class LegacyMigrationSummary:
+    created_schema: bool
+    attempted_add_columns: int
+    attempted_backfills: int
+    dry_run: bool
+
+
+def run_legacy_lightweight_migrations(*, dry_run: bool = False) -> LegacyMigrationSummary:
     logger.warning(
         "Running deprecated legacy lightweight migration script. Use only for temporary emergency recovery."
     )
@@ -22,7 +31,8 @@ def run_legacy_lightweight_migrations() -> None:
         DeprecationWarning,
         stacklevel=2,
     )
-    SQLModel.metadata.create_all(engine)
+    if not dry_run:
+        SQLModel.metadata.create_all(engine)
     column_migrations = [
         ("searchrun", "provider", "provider TEXT DEFAULT 'mock'"),
         ("searchrun", "status", "status TEXT DEFAULT 'completed'"),
@@ -76,31 +86,45 @@ def run_legacy_lightweight_migrations() -> None:
         ("noteupdatesuggestion", "applied_at", "applied_at DATETIME"),
         ("noteupdatesuggestion", "applied_by", "applied_by TEXT DEFAULT ''"),
     ]
-    for table_name, column_name, ddl in column_migrations:
-        add_column_if_missing(engine=engine, table_name=table_name, column_name=column_name, ddl=ddl)
+    if not dry_run:
+        for table_name, column_name, ddl in column_migrations:
+            add_column_if_missing(engine=engine, table_name=table_name, column_name=column_name, ddl=ddl)
 
-    backfill_null(engine=engine, table_name="evidencecard", column_name="extracted_at", replacement_sql="CURRENT_TIMESTAMP")
-    backfill_null(engine=engine, table_name="sourcepaper", column_name="ingested_at", replacement_sql="CURRENT_TIMESTAMP")
-    backfill_null(engine=engine, table_name="sourcepaper", column_name="source_updated_at", replacement_sql="CURRENT_TIMESTAMP")
-    add_column_if_missing(engine=engine, table_name="topicnote", column_name="sections_json", ddl="sections_json TEXT DEFAULT '[]'")
-    add_column_if_missing(engine=engine, table_name="topicnote", column_name="metadata_json", ddl="metadata_json TEXT DEFAULT '{}'")
-    add_column_if_missing(engine=engine, table_name="projectpaper", column_name="extraction_state", ddl="extraction_state TEXT DEFAULT 'not_started'")
-    add_column_if_missing(engine=engine, table_name="projectpaper", column_name="extracted_fingerprint", ddl="extracted_fingerprint TEXT DEFAULT ''")
-    add_column_if_missing(engine=engine, table_name="projectpaper", column_name="last_extracted_at", ddl="last_extracted_at DATETIME")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="run_type", ddl="run_type TEXT DEFAULT 'generic'")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="provider", ddl="provider TEXT DEFAULT ''")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="error_message", ddl="error_message TEXT DEFAULT ''")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="current_step", ddl="current_step TEXT DEFAULT ''")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="progress_message", ddl="progress_message TEXT DEFAULT ''")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="total_steps", ddl="total_steps INTEGER DEFAULT 0")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="completed_steps", ddl="completed_steps INTEGER DEFAULT 0")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="papers_found", ddl="papers_found INTEGER DEFAULT 0")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="papers_added", ddl="papers_added INTEGER DEFAULT 0")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="evidence_created", ddl="evidence_created INTEGER DEFAULT 0")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="affected_sections_count", ddl="affected_sections_count INTEGER DEFAULT 0")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="started_at", ddl="started_at DATETIME")
-    add_column_if_missing(engine=engine, table_name="updaterun", column_name="finished_at", ddl="finished_at DATETIME")
-    backfill_null(engine=engine, table_name="updaterun", column_name="started_at", replacement_sql="created_at")
+    additional_columns = [
+        ("topicnote", "sections_json", "sections_json TEXT DEFAULT '[]'"),
+        ("topicnote", "metadata_json", "metadata_json TEXT DEFAULT '{}'"),
+        ("projectpaper", "extraction_state", "extraction_state TEXT DEFAULT 'not_started'"),
+        ("projectpaper", "extracted_fingerprint", "extracted_fingerprint TEXT DEFAULT ''"),
+        ("projectpaper", "last_extracted_at", "last_extracted_at DATETIME"),
+        ("updaterun", "run_type", "run_type TEXT DEFAULT 'generic'"),
+        ("updaterun", "provider", "provider TEXT DEFAULT ''"),
+        ("updaterun", "error_message", "error_message TEXT DEFAULT ''"),
+        ("updaterun", "current_step", "current_step TEXT DEFAULT ''"),
+        ("updaterun", "progress_message", "progress_message TEXT DEFAULT ''"),
+        ("updaterun", "total_steps", "total_steps INTEGER DEFAULT 0"),
+        ("updaterun", "completed_steps", "completed_steps INTEGER DEFAULT 0"),
+        ("updaterun", "papers_found", "papers_found INTEGER DEFAULT 0"),
+        ("updaterun", "papers_added", "papers_added INTEGER DEFAULT 0"),
+        ("updaterun", "evidence_created", "evidence_created INTEGER DEFAULT 0"),
+        ("updaterun", "affected_sections_count", "affected_sections_count INTEGER DEFAULT 0"),
+        ("updaterun", "started_at", "started_at DATETIME"),
+        ("updaterun", "finished_at", "finished_at DATETIME"),
+    ]
+    if not dry_run:
+        for table_name, column_name, ddl in additional_columns:
+            add_column_if_missing(engine=engine, table_name=table_name, column_name=column_name, ddl=ddl)
+
+        backfill_null(engine=engine, table_name="evidencecard", column_name="extracted_at", replacement_sql="CURRENT_TIMESTAMP")
+        backfill_null(engine=engine, table_name="sourcepaper", column_name="ingested_at", replacement_sql="CURRENT_TIMESTAMP")
+        backfill_null(engine=engine, table_name="sourcepaper", column_name="source_updated_at", replacement_sql="CURRENT_TIMESTAMP")
+        backfill_null(engine=engine, table_name="updaterun", column_name="started_at", replacement_sql="created_at")
+
+    return LegacyMigrationSummary(
+        created_schema=not dry_run,
+        attempted_add_columns=len(column_migrations) + len(additional_columns),
+        attempted_backfills=4,
+        dry_run=dry_run,
+    )
 
 
 def main() -> int:
@@ -112,6 +136,11 @@ def main() -> int:
         action="store_true",
         help="Required. Acknowledge that this deprecated path is only for emergency legacy recovery.",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the planned legacy migration actions without modifying the database.",
+    )
     args = parser.parse_args()
 
     if not args.confirm:
@@ -122,8 +151,20 @@ def main() -> int:
         )
         return 2
 
-    run_legacy_lightweight_migrations()
-    print("Legacy lightweight migration path completed.", file=sys.stdout)
+    summary = run_legacy_lightweight_migrations(dry_run=args.dry_run)
+    if args.dry_run:
+        print(
+            f"Dry run complete. Would attempt {summary.attempted_add_columns} column additions and "
+            f"{summary.attempted_backfills} null backfills.",
+            file=sys.stdout,
+        )
+        return 0
+
+    print(
+        f"Legacy lightweight migration path completed. Attempted {summary.attempted_add_columns} column additions "
+        f"and {summary.attempted_backfills} null backfills.",
+        file=sys.stdout,
+    )
     return 0
 
 

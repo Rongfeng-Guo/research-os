@@ -18,6 +18,13 @@ cd backend
 python scripts/legacy_lightweight_migrate.py --confirm
 ```
 
+To inspect the planned fallback operations without modifying the database:
+
+```powershell
+cd backend
+python scripts/legacy_lightweight_migrate.py --confirm --dry-run
+```
+
 When this mode is used, the backend also emits:
 
 - a `DeprecationWarning`
