@@ -1,5 +1,8 @@
 # Research OS
 
+[![CI](https://github.com/Rongfeng-Guo/research-os/actions/workflows/ci.yml/badge.svg)](https://github.com/Rongfeng-Guo/research-os/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Research OS is a structured research workspace for turning a stream of papers into durable project knowledge.
 
 Instead of treating literature review as a single opaque chat interaction, the system keeps each stage explicit and inspectable:
@@ -343,3 +346,8 @@ The most natural next-stage evolution is:
 ## License
 
 This project is released under the MIT License. See [LICENSE](LICENSE).
+
+## Citation
+
+If Research OS helps your research workflow or system design, cite the project
+metadata in `CITATION.cff`.

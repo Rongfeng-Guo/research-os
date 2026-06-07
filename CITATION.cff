@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If Research OS helps your research workflow or system design, please cite it as below."
+title: "Research OS"
+authors:
+  - family-names: "Guo"
+    given-names: "Rongfeng"
+repository-code: "https://github.com/Rongfeng-Guo/research-os"
+date-released: 2026-05-31
+keywords:
+  - research workspace
+  - literature review
+  - evidence extraction
+  - FastAPI
+  - Next.js
